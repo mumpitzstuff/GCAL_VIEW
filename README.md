@@ -12,6 +12,8 @@
         <li>sudo nano /etc/passwd</li>
         <li>search for fhem and replace /bin/false with /bin/bash</li>
     </ul>
+    <li>gcalcli list --noauth_local_webserver
+    Copy the URL into a browser and start it. Accept the connection to your Google Calendar and copy the OAuth token. Enter the token in your fhem console window and press enter.</li>
     <li>add the new update site: update add http://<i></i>raw.githubusercontent.com/mumpitzstuff/fhem-GCALVIEW/master/controls_gcalview.txt</li>
     <li>run the update and wait until finished: update all</li>
     <li>restart fhem: shutdown restart</li>
