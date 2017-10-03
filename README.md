@@ -7,7 +7,7 @@
     <li>sudo apt-get install gcalcli</li>
     <li>sudo pip install gcalcli</li>
     <li>sudo su - fhem (be sure that the user is really activated!)</li>
-    <li>If it is not possible to open a bash try the following:</li>
+    <li>If it is not possible to open a bash, try the following:</li>
     <ul>
         <li>sudo nano /etc/passwd</li>
         <li>search for fhem and replace /bin/false with /bin/bash</li>

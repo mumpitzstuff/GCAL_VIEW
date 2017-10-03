@@ -103,7 +103,7 @@ sub GCALVIEW_Attr($$$$) {
     }
     elsif ($attribute eq "agendaDays")
     {
-      if ($value !~ /^\d+$/)
+      if (($value !~ /^\d+$/) || ($value < 0))
       {
         return "agendaDays is required in days";
       }
@@ -305,6 +305,7 @@ sub GCALVIEW_DoEnd($)
         readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1)."_summary", $7);
         readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1)."_timeshort", $2." - ".$4);
         readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1)."_weekday", (0 == (($weekday + $daysleft) % 8)) ? 1 : (($weekday + $daysleft) % 8));
+        readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1)."_url", '<html><a href="'.$5.'" target="_blank">link</a></html>');
         
         $$counter++;
       }
