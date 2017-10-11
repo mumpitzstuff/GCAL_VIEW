@@ -22,6 +22,7 @@ sub GCALVIEW_Initialize($)
   $hash->{UndefFn}  = 'GCALVIEW_Undefine';
   $hash->{NotifyFn} = 'GCALVIEW_Notify'; 
   $hash->{SetFn}    = 'GCALVIEW_Set'; 
+  $hash->{GetFn}    = 'GCALVIEW_Get';
   $hash->{AttrFn}   = 'GCALVIEW_Attr';
   $hash->{AttrList} = 'updateInterval '.
                       'calendarDays '.
@@ -33,6 +34,12 @@ sub GCALVIEW_Initialize($)
                       'includeStarted:1 '.
                       'sourceColor:textField-long '.
                       'disable:1 '.
+                      'filterSummary '.
+                      'filterLocation '.
+                      'filterDescription '.
+                      'filterSource '.
+                      'filterAuthor '.
+                      'filterOverall '.
                       $readingFnAttributes;
 
   return undef;
@@ -175,8 +182,22 @@ sub GCALVIEW_Attr($$$$) {
         return 'weekdayText must be a comma separated list of 7 days: Monday,Tuesday,...';
       }
     }
+    elsif ($attribute eq 'filterSummary' ||
+           $attribute eq 'filterLocation' ||
+           $attribute eq 'filterDescription' ||
+           $attribute eq 'filterSource' ||
+           $attribute eq 'filterAuthor' ||
+           $attribute eq 'filterOverall')
+    {
+      my $regex = eval{qr/$value/};
+      
+      if ($@)
+      {
+        return 'regular expression is wrong: '.$@;
+      }        
+    }
   }
-
+ 
   return undef;
 }
 
@@ -200,17 +221,51 @@ sub GCALVIEW_SetNextTimer($$)
 
 
 sub GCALVIEW_Set($$@) {
-    my ($hash, $name, @aa) = @_;
-    my ($cmd, $arg) = @aa;
+  my ($hash, $name, @aa) = @_;
+  my ($cmd, $arg) = @aa;
     
-    if ($cmd eq 'update') {
-        GCALVIEW_Start($hash);
-    } else {
-        my $list = 'update:noArg';
-        return 'Unknown argument '.$cmd.', choose one of '.$list;
+  if ($cmd eq 'calendarFilter')
+  {
+    $attr{$name}{'calendarFilter'} = $arg;
+  }
+  else 
+  {
+    my $list;
+    my $calendarFilter = AttrVal($name, 'calendarFilter', undef);
+      
+    if (defined($calendarFilter))
+    {
+      $calendarFilter =~ s/\s/#/g;
+      $list = 'calendarFilter:multiple-strict,'.$calendarFilter;
     }
+    else
+    {
+      $list = 'calendarFilter:noArg';
+    }
+      
+    return 'Unknown argument '.$cmd.', choose one of '.$list;
+  }
 
-    return undef;
+  return undef;
+}
+
+
+sub GCALVIEW_Get($$@) {
+  my ($hash, $name, @aa) = @_;
+  my ($cmd, $arg) = @aa;
+    
+  if ($cmd eq 'update') 
+  {
+    GCALVIEW_Start($hash);
+  }
+  else 
+  {
+    my $list = 'update:noArg';
+      
+    return 'Unknown argument '.$cmd.', choose one of '.$list;
+  }
+
+  return undef;
 } 
 
 
@@ -220,11 +275,14 @@ sub GCALVIEW_Start($)
 
   return undef if (IsDisabled($hash->{NAME}));
 
-  if (!(exists($hash->{helper}{RUNNING_PID}))) {
+  if (!(exists($hash->{helper}{RUNNING_PID}))) 
+  {
     GCALVIEW_SetNextTimer($hash, undef);
     
     $hash->{helper}{RUNNING_PID} = BlockingCall('GCALVIEW_DoRun', $hash->{NAME}, 'GCALVIEW_DoEnd', $hash->{TIMEOUT}, 'GCALVIEW_DoAbort', $hash);
-  } else {
+  } 
+  else 
+  {
     Log3 $hash->{NAME}, 3, $hash->{NAME}.' blocking call already running';
     GCALVIEW_SetNextTimer($hash, undef);
   }
@@ -238,16 +296,16 @@ sub GCALVIEW_DoRun(@)
   my @calList = ();
   my $calData = '';
   my $result;
-  my $calendarDays = AttrVal($name, 'calendarDays', '');
+  my $calendarDays = AttrVal($name, 'calendarDays', undef);
   my $calendarPeriod = '';
-  my $calFilter = AttrVal($name, 'calendarFilter', '');
+  my $calFilter = AttrVal($name, 'calendarFilter', undef);
   my $includeStarted = (1 == AttrVal($name, 'includeStarted', 0) ? '--started' : '');
   my ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) = localtime(time);
   my $today = sprintf('%02d/%02d/%04d', $mon + 1, $mday, $year + 1900);
    
   Log3 $name, 5, $name.'_DoRun: start running';
   
-  if ('' eq $calFilter)
+  if (!defined($calFilter))
   {
     ($calData, $result) = ($_ = qx(gcalcli list 2>&1), $? >> 8);
     
@@ -267,6 +325,8 @@ sub GCALVIEW_DoRun(@)
         push(@calList, $1);
       }
     }
+    
+    $calFilter = '';
   }
   else
   {
@@ -280,7 +340,7 @@ sub GCALVIEW_DoRun(@)
     $calFilter = '--calendar '.join(' --calendar ', @_);
   }
   
-  if ('' ne $calendarDays)
+  if (defined($calendarDays))
   {
     ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) = localtime(time + (86400 * $calendarDays));
     
@@ -326,11 +386,11 @@ sub GCALVIEW_DoEnd($)
   {
     $attr{$name}{'calendarFilter'} = $calList;
 
-    if ('' eq AttrVal($name, 'widgetOverride', ''))
-    {
-      $calList =~ s/\s/#/g;
-      $attr{$name}{'widgetOverride'} = 'calendarFilter:multiple-strict,'.$calList;
-    }
+    #if (!defined(AttrVal($name, 'widgetOverride', undef)))
+    #{
+    #  $calList =~ s/\s/#/g;
+    #  $attr{$name}{'widgetOverride'} = 'calendarFilter:multiple-strict,'.$calList;
+    #}
   }
   
   if ('' ne $calData)
@@ -420,7 +480,7 @@ sub GCALVIEW_DoEnd($)
         $timeShort = $startTime.' - '.$endTime;
       }
       
-      if ('' == AttrVal($name, 'weekdayText', ''))
+      if (!defined(AttrVal($name, 'weekdayText', undef)))
       {
         @_ = ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday');
         $weekdayStr = $_[(($weekday - 1 + $daysleft) % 7)];        
