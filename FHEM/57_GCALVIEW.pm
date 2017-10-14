@@ -12,6 +12,7 @@ package main;
 use strict;
 use warnings;
 use Blocking;
+use JSON;
 
 
 sub GCALVIEW_Initialize($)
@@ -21,12 +22,10 @@ sub GCALVIEW_Initialize($)
   $hash->{DefFn}    = 'GCALVIEW_Define';
   $hash->{UndefFn}  = 'GCALVIEW_Undefine';
   $hash->{NotifyFn} = 'GCALVIEW_Notify'; 
-  $hash->{SetFn}    = 'GCALVIEW_Set'; 
   $hash->{GetFn}    = 'GCALVIEW_Get';
   $hash->{AttrFn}   = 'GCALVIEW_Attr';
   $hash->{AttrList} = 'updateInterval '.
                       'calendarDays '.
-                      'calendarFilter '.
                       'calendarType:standard,waste '.
                       'alldayText '.
                       'weekdayText '.
@@ -189,7 +188,7 @@ sub GCALVIEW_Attr($$$$) {
            $attribute eq 'filterAuthor' ||
            $attribute eq 'filterOverall')
     {
-      my $regex = eval{qr/$value/};
+      eval{qr/$value/};
       
       if ($@)
       {
@@ -217,36 +216,6 @@ sub GCALVIEW_SetNextTimer($$)
   {
     InternalTimer(gettimeofday() + int(rand(30)) + $timer, 'GCALVIEW_Start', $hash, 0);
   }
-}
-
-
-sub GCALVIEW_Set($$@) {
-  my ($hash, $name, @aa) = @_;
-  my ($cmd, $arg) = @aa;
-    
-  if ($cmd eq 'calendarFilter')
-  {
-    $attr{$name}{'calendarFilter'} = $arg;
-  }
-  else 
-  {
-    my $list;
-    my $calendarFilter = AttrVal($name, 'calendarFilter', undef);
-      
-    if (defined($calendarFilter))
-    {
-      $calendarFilter =~ s/\s/#/g;
-      $list = 'calendarFilter:multiple-strict,'.$calendarFilter;
-    }
-    else
-    {
-      $list = 'calendarFilter:noArg';
-    }
-      
-    return 'Unknown argument '.$cmd.', choose one of '.$list;
-  }
-
-  return undef;
 }
 
 
@@ -305,8 +274,10 @@ sub GCALVIEW_DoRun(@)
    
   Log3 $name, 5, $name.'_DoRun: start running';
   
+  # calendar filter attribute already set? 
   if (!defined($calFilter))
   {
+    # get list of calendars
     ($calData, $result) = ($_ = qx(gcalcli list 2>&1), $? >> 8);
     
     if (0 != $result)
@@ -330,6 +301,7 @@ sub GCALVIEW_DoRun(@)
   }
   else
   {
+    # filter calendars if attribute calFilter is available
     @_ = split(/\s*,\s*/, $calFilter);
     
     for (@_) 
@@ -340,6 +312,7 @@ sub GCALVIEW_DoRun(@)
     $calFilter = '--calendar '.join(' --calendar ', @_);
   }
   
+  # calculate end date if needed (5 days is the default)
   if (defined($calendarDays))
   {
     ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) = localtime(time + (86400 * $calendarDays));
@@ -347,6 +320,7 @@ sub GCALVIEW_DoRun(@)
     $calendarPeriod = $today.' '.sprintf('%02d/%02d/%04d', $mon + 1, $mday, $year + 1900);
   }
   
+  # get all calendar entries
   ($calData, $result) = ($_ = qx(gcalcli agenda $calendarPeriod $calFilter --detail_all $includeStarted --tsv 2>&1), $? >> 8);  
   
   if (0 != $result)
@@ -358,11 +332,70 @@ sub GCALVIEW_DoRun(@)
   }
   else
   {
+    # split the results by lines
+    my @entry = split("\n" , $calData);
+    my @calStruct = ();
+    my $filterSummary = AttrVal($name, 'filterSummary', undef);
+    my $filterLocation = AttrVal($name, 'filterLocation', undef);
+    my $filterDescription = AttrVal($name, 'filterDescription', undef);
+    my $filterSource = AttrVal($name, 'filterSource', undef);
+    my $filterAuthor = AttrVal($name, 'filterAuthor', undef);
+    my $filterOverall = AttrVal($name, 'filterOverall', undef);
+    my $sourceColor;
+    my @sourceColors = split('\s*,\s*' , AttrVal($name, 'sourceColor', ''));
+    
     #Log3 $name, 5, $name.': '.$calData;
-  
-    $calData = encode_base64($calData, '');
+    
+    foreach $_ (@entry)
+    {
+      # split each line by tabs
+      @_ = split("\t", $_);
+      
+      # output must have exactly 11 fields of data
+      if (11 == scalar(@_))
+      {
+        # apply some content filters
+        next if ((defined($filterSummary) && ($_[6] =~ /$filterSummary/)) ||
+                 (defined($filterLocation) && ($_[7] =~ /$filterLocation/)) ||
+                 (defined($filterDescription) && ($_[8] =~ /$filterDescription/)) ||
+                 (defined($filterSource) && ($_[9] =~ /$filterSource/)) ||
+                 (defined($filterAuthor) && ($_[10] =~ /$filterAuthor/)) ||
+                 (defined($filterOverall) && (($_[6] =~ /$filterOverall/) || 
+                                              ($_[7] =~ /$filterOverall/) ||
+                                              ($_[8] =~ /$filterOverall/) ||
+                                              ($_[9] =~ /$filterOverall/) ||
+                                              ($_[10] =~ /$filterOverall/))));      
+      
+        # generate source color and add an additonal data field
+        $sourceColor = 'white';
+        foreach (@sourceColors)
+        { 
+          my ($source, $color) = split('\s*:\s*', $_); 
+          
+          if (-1 != index($_[9], $source))
+          { 
+            $sourceColor = $color;
+            
+            last;
+          }
+        };
+        
+        push(@_, $sourceColor);
+        push(@calStruct, [@_]);
+      }
+      else
+      {
+        Log3 $name, 3, $name.': something went wrong (invalid gcalcli output) - '.join(', ', @_);;
+      }
+    }
+    
+    # encode filtered calendar entries
+    $calData = encode_json(\@calStruct);
+    
+    #Log3 $name, 5, $name.': '.$calData;
   }
   
+  # encode calendar list
   $_ = encode_base64(join(',', @calList), '');
 
   return $name.'|'.$_.'|'.$calData;
@@ -372,69 +405,70 @@ sub GCALVIEW_DoRun(@)
 sub GCALVIEW_DoEnd($)
 {
   my ($string) = @_;
-  my ($name, $calList, $calData) = split("\\|", $string);
+  my ($name, $calList, $calDataJson) = split("\\|", $string);
   my $hash = $defs{$name};
+  my @calData;
+  my $cterm_new = 0;
+  my $ctoday_new = 0;
+  my $ctomorrow_new = 0;
    
   Log3 $name, 5, $name.'_DoEnd: end running';
   
+  # decode results
   $calList = decode_base64($calList);
-  $calData = decode_base64($calData);
-  
-  readingsBeginUpdate($hash);
+  @calData = @{decode_json($calDataJson)};
   
   if ('' ne $calList)
   {
-    $attr{$name}{'calendarFilter'} = $calList;
-
-    #if (!defined(AttrVal($name, 'widgetOverride', undef)))
-    #{
-    #  $calList =~ s/\s/#/g;
-    #  $attr{$name}{'widgetOverride'} = 'calendarFilter:multiple-strict,'.$calList;
-    #}
+    $calList =~ s/\s/#/g;
+    addToDevAttrList($name, 'calendarFilter:multiple-strict,'.$calList);
   }
   
-  if ('' ne $calData)
+  # clear all readings
+  delete($hash->{READINGS});
+  
+  # start update of readings
+  readingsBeginUpdate($hash);
+  
+  if (scalar(@calData))
   {
-    my $cterm_new = 0;
-    my $ctoday_new = 0;
-    my $ctomorrow_new = 0;
-    my $sourceColor;
-    my @sourceColors = split('\s*,\s*' , AttrVal($name, 'sourceColor', ''));
     my ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) = localtime(time);
     my $weekday = $wday;
     my $today = sprintf('%02d.%02d.%04d', $mday, $mon + 1, $year + 1900);
     ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) = localtime(time + 86400);
     my $tomorrow = sprintf('%02d.%02d.%04d', $mday, $mon + 1, $year + 1900); 
     my @readingPrefix = ('t_', 'today_', 'tomorrow_');
+    my $weekDayArr = AttrVal($name, 'weekdayText', undef);
+    my $alldayText = AttrVal($name, 'alldayText', 'all-day');
   
-    delete($hash->{READINGS});
-  
-    while ($calData =~ m/\s*([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t(.*)\s*/g)
+    foreach (@calData)
     {
       # mapping
-      # 1 = start date
-      # 2 = start time
-      # 3 = end date
-      # 4 = end time
-      # 5 = link
-      # 6 = ?
-      # 7 = summary
-      # 8 = location
-      # 9 = description
-      # 10 = calendar
-      # 11 = author
-      #Log3 $name, 5, $name.': entry'.($cterm_new + 1).' #1 '.$1.' #2 '.$2.' #3 '.$3.' #4 '.$4.' #5 '.$5.' #6 '.$6.' #7 '.$7.' #8 '.$8.' #9 '.$9.' #10 '.$10.' #11 '.$11;  
-      
-      my $startDate = $1;
-      my $startTime = $2;
-      my $endDate = $3;
-      my $endTime = $4;
-      my $url = $5;
-      my $summary = $7;
-      my $location = $8;
-      my $description = $9;
-      my $calendar = $10;
-      my $author = $11;
+      # 0 = start date
+      # 1 = start time
+      # 2 = end date
+      # 3 = end time
+      # 4 = link
+      # 5 = ?
+      # 6 = summary
+      # 7 = location
+      # 8 = description
+      # 9 = calendar
+      # 10 = author
+      # additional generated attribute
+      # 11 = sourcecolor
+            
+      my $startDate = @$_[0];
+      my $startTime = @$_[1];
+      my $endDate = @$_[2];
+      my $endTime = @$_[3];
+      my $url = @$_[4];
+      my $summary = @$_[6];
+      my $location = @$_[7];
+      my $description = @$_[8];
+      my $calendar = @$_[9];
+      my $author = @$_[10];
+      my $sourceColor = @$_[11];
       my ($startYear, $startMonth, $startDay) = split("-", $startDate);
       my ($endYear, $endMonth, $endDay) = split("-", $endDate);
       my $eventDate = fhemTimeLocal(0, 0, 0, $startDay, $startMonth - 1, $startYear - 1900);
@@ -445,6 +479,7 @@ sub GCALVIEW_DoEnd($)
       my $timeShort;
       my $weekdayStr;
     
+      # generate string daysleft
       if (0 == $daysleft)
       {
         $daysleftLong = 'today';
@@ -458,39 +493,29 @@ sub GCALVIEW_DoEnd($)
         $daysleftLong = 'in '.$daysleft.' days';
       }
       
-      $sourceColor = 'white';
-      foreach (@sourceColors)
-      { 
-				my ($source, $color) = split('\s*:\s*', $_); 
-				
-        if (-1 != index($calendar, $source))
-        { 
-          $sourceColor = $color;
-          
-          last;
-        }
-			};
-
+      # generate timeshort
       if (($startTime eq "00:00") && ($endTime eq "00:00") && ($startDate ne $endDate))
       {
-        $timeShort = AttrVal($name, 'alldayText', 'all-day');
+        $timeShort = $alldayText;
       }
       else
       {
         $timeShort = $startTime.' - '.$endTime;
       }
       
-      if (!defined(AttrVal($name, 'weekdayText', undef)))
+      # generate weekdaytext
+      if (!defined($weekDayArr))
       {
         @_ = ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday');
         $weekdayStr = $_[(($weekday - 1 + $daysleft) % 7)];        
       }
       else
       {
-        @_ = split('\s*,\s*', AttrVal($name, 'weekdayText', ''));
+        @_ = split('\s*,\s*', $weekDayArr);
         $weekdayStr = $_[(($weekday - 1 + $daysleft) % 7)];
       }
       
+      # loop 3 times to generate the overall appointment list, the appointment list for today and the appointment list for tomorrow
       for (my $i = 0; $i < 3; $i++)
       {
         if ((0 == $i) ||
@@ -536,13 +561,13 @@ sub GCALVIEW_DoEnd($)
       
       last if ($cterm_new >= AttrVal($name, 'maxEntries', 200));
     }
-    
-    readingsBulkUpdate($hash, 'c-term', $cterm_new);
-    readingsBulkUpdate($hash, 'c-today', $ctoday_new);
-    readingsBulkUpdate($hash, 'c-tomorrow', $ctomorrow_new);
-    readingsBulkUpdate($hash, 'state', 't: '.$cterm_new.' td: '.$ctoday_new.' tm: '.$ctomorrow_new);
-    readingsEndUpdate($hash, 1); 
   }
+        
+  readingsBulkUpdate($hash, 'c-term', $cterm_new);
+  readingsBulkUpdate($hash, 'c-today', $ctoday_new);
+  readingsBulkUpdate($hash, 'c-tomorrow', $ctomorrow_new);
+  readingsBulkUpdate($hash, 'state', 't: '.$cterm_new.' td: '.$ctoday_new.' tm: '.$ctomorrow_new);
+  readingsEndUpdate($hash, 1); 
   
   delete($hash->{helper}{RUNNING_PID});
 }
