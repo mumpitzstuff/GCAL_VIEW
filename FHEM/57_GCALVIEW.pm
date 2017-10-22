@@ -13,6 +13,8 @@ use strict;
 use warnings;
 use Blocking;
 use JSON;
+use utf8;
+use Encode qw(encode_utf8 decode_utf8);
 
 
 sub GCALVIEW_Initialize($)
@@ -500,7 +502,7 @@ sub GCALVIEW_DoEnd($)
   my $ctomorrow_new = 0;
   my $calendarType = AttrVal($name, 'calendarType', 'standard');
   my $daysUntilNext = 0;
-   
+     
   Log3 $name, 5, $name.'_DoEnd: end running';
   
   # decode results
@@ -535,7 +537,8 @@ sub GCALVIEW_DoEnd($)
     my $nextDate = undef;
     my $nextText = '';
     my $nextDescription = '';
-  
+    my %umlaute = ("ä" => "ae", "Ä" => "Ae", "ü" => "ue", "Ü" => "Ue", "ö" => "oe", "Ö" => "Oe", "ß" => "ss");
+      
     foreach (@calData)
     {
       # mapping
@@ -639,8 +642,14 @@ sub GCALVIEW_DoEnd($)
           
           if ('waste' eq $calendarType)
           {
-            my $readingName = $summary;
+            my $readingName = decode('UTF-8', $summary);
             $readingName =~ s/ /_/g;
+            eval 
+            {
+              use utf8;
+              $readingName =~ s/([äÄüÜöÖß])/$umlaute{$1}/eg;
+            };
+            $readingName =~ tr/a-zA-Z0-9\-_//dc;
             
             readingsBulkUpdate($hash, $readingPrefix[$i].$readingName.'_date', $startDateStr);
             readingsBulkUpdate($hash, $readingPrefix[$i].$readingName.'_days', $daysleft);
