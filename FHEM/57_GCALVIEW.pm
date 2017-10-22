@@ -29,6 +29,7 @@ sub GCALVIEW_Initialize($)
                       'calendarDays '.
                       'calendarType:standard,waste '.
                       'readingPrefix:1 '.
+                      'wasteEventSeparator '.
                       'alldayText '.
                       'weekdayText '.
                       'maxEntries '.
@@ -527,6 +528,7 @@ sub GCALVIEW_DoEnd($)
     my $tomorrow = sprintf('%02d.%02d.%04d', $mday, $mon + 1, $year + 1900); 
     my $weekDayArr = AttrVal($name, 'weekdayText', undef);
     my $alldayText = AttrVal($name, 'alldayText', 'all-day');
+    my $wasteEventSeparator = AttrVal($name, 'wasteEventSeparator', ' and ');
     my @readingPrefix = ('standard' eq $calendarType) ? ('t_', 'today_', 'tomorrow_') : ((1 == AttrVal($name, 'readingPrefix', 0)) ? ($name.'_') : (''));
     my $nowText = undef;
     my $nowDescription = '';
@@ -652,8 +654,8 @@ sub GCALVIEW_DoEnd($)
             {
               if (defined($nowText))
               {
-                $nowText .= ' and '.$summary;
-                $nowDescription .= ' and '.$description if ($nowDescription ne $description);
+                $nowText .= $wasteEventSeparator.$summary;
+                $nowDescription .= $wasteEventSeparator.$description if ($nowDescription ne $description);
                 
                 readingsBulkUpdate($hash, 'now_text', $nowText);
                 readingsBulkUpdate($hash, 'now_description', $nowDescription);
@@ -676,8 +678,8 @@ sub GCALVIEW_DoEnd($)
             {
               if ($nextDate eq $startDateStr)
               {
-                $nextText .= ' and '.$summary;
-                $nextDescription .= ' and '.$description if ($nextDescription ne $description);
+                $nextText .= $wasteEventSeparator.$summary;
+                $nextDescription .= $wasteEventSeparator.$description if ($nextDescription ne $description);
                 
                 readingsBulkUpdate($hash, 'next_text', $nextText);
                 readingsBulkUpdate($hash, 'next_description', $nextDescription);
@@ -759,6 +761,83 @@ sub GCALVIEW_DoAbort($)
 
 <a name="GCALVIEW"></a>
 <h3>GCALVIEW</h3>
+
+<ul>
+  <u><b>Calender Viewer for Google Calendar</b></u>
+  <br><br>
+  This calendar can show you all events in a certain period of time. There are many options to filter
+  the data and adapt the output to your needs. This module has 2 modes, a standard mode which behaves like 
+  57_CALVIEW and a waste mode which behaves like 57_ABFALL. You can easily switch back and forth between 
+  the two modes to customize the calendar to suit your needs. The module is completely non blocking but 
+  needs to have gcalcli installed.   
+  <br><br>
+  <a name="GCALVIEWinstallation"></a>
+  <b>Installation</b>
+  <ul><br>
+    You have to install gcalcli first and to get a valid OAuth token directly from Google.<br><br>
+    <code>sudo apt-get install gcalcli</code><br>
+    <code>sudo pip install gcalcli</code><br><br>
+    Now check if the user fhem is able to open a bash shell (just needed temporary and can be reverted after the OAuth token was installed).<br><br>
+    <code>sudo nano /etc/passwd</code><br><br>
+    Search for user fhem and replace /bin/false with /bin/bash if needed.<br><br>
+    <code>gcalcli list --noauth_local_webserver</code><br><br>
+    Copy the URL into a browser and start it. Accept the connection to your Google Calendar and copy the OAuth token. Enter the token in your fhem console window and press enter.<br><br>
+    <code>gcalcli list</code><br><br>
+    Check if you can get a list of you calendars now and proceed if it was successful.<br>
+    Exit the fhem bash and revert the change in /etc/passwd again just for security reasons.<br>
+    Open you fhem installation within you browser now and do the following:<br><br>
+    <code>update add http://raw.githubusercontent.com/mumpitzstuff/fhem-GCALVIEW/master/controls_gcalview.txt</code><br>
+    <code>update all</code><br>
+    <code>shutdown restart</code><br>
+    <code>define &lt;name&gt; GCALVIEW &lt;timeout&gt;</code>
+  </ul>
+  <br><br>
+  <a name="GCALVIEWdefine"></a>
+  <b>Define</b>
+  <ul><br>
+    <code>define &lt;name&gt; GCALVIEW &lt;timeout&gt;</code>
+    <br><br>
+    Example:
+    <ul><br>
+      <code>define MyCalendar GCALVIEW 30</code><br>
+    </ul>
+    <br>
+    This command creates a calendar with the name MyCalendar. If the background update process takes more time than the 
+    timeout value allows, this process is aborted.
+  </ul>
+  <br><br>
+  <a name="GCALVIEWset"></a>
+  <b>Set</b>
+  <ul>
+    <li>update - update the calender content</li>
+    <br>
+  </ul>
+  <br><br>
+  <a name="GCALVIEWattribut"></a>
+  <b>Attributes</b>
+  <ul>
+    <li><b>updateInterval:</b> update intervall in seconds (default: 3600 seconds)<br></li>
+    <li><b>calendarFilter:</b> some calendars can be filtered (default: all calendars of a google account are activated)<br></li>
+    <li><b>calendarDays:</b> defines the timespan in days (start is today). the default timespan is 5 days.<br></li>
+    <li><b>calendarType:</b> <ul><li>standard - output like 57_CALVIEW</li>
+                                 <li>waste - output like 57_ABFALL</li></ul><br></li>
+    <li><b>includeStarted:</b> include appointments of today<br></li>
+    <li><b>maxEntries:</b> limit the maximum appointments (not more than 200 allowed)<br></li>
+    <li><b>disable:</b> disable the module (no update anymore)<br></li>
+    <li><b>filterSummary:</b> regex to filter a summary (whole appointment will be removed from output if the regex matches)<br></li>
+    <li><b>filterLocation:</b> regex to filter a location (whole appointment will be removed from output if the regex matches)<br></li>
+    <li><b>filterDescription:</b> regex to filter a description (whole appointment will be removed from output if the regex matches)<br></li>
+    <li><b>filterSource:</b> regex to filter a source (whole appointment will be removed from output if the regex matches)<br></li>
+    <li><b>filterAuthor:</b> regex to filter an author (whole appointment will be removed from output if the regex matches)<br></li>
+    <li><b>filterOverall:</b> regex to filter a summary, location, description, source or author (whole appointment will be removed from output if the regex matches)<br></li>
+    <li><b>alldayText:</b> set the text for an allday event (default: all-day)<br></li>
+    <li><b>weekdayText:</b> set the weekday text as comma separated list (default: Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday)<br></li>
+    <li><b>readingPrefix:</b> calendar name is used as reading prefix if type waste is active<br></li>
+    <li><b>sourceColor:</b> set a color string based on source (Format: source:color,source:color,...)<br></li>
+    <li><b>wasteEventSeparator:</b> separator for waste events if there are more than 1 event in one day<br></li>
+    <br>
+  </ul>
+</ul>
 
 =end html
 =cut
