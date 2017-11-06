@@ -35,9 +35,10 @@ sub GCALVIEW_Initialize($)
                       'alldayText '.
                       'weekdayText '.
                       'maxEntries '.
-                      'includeStarted:1 '.
+                      'includeStarted:0 '.
                       'sourceColor:textField-long '.
                       'disable:1 '.
+                      'cache:0 '.
                       'filterSummary '.
                       'filterLocation '.
                       'filterDescription '.
@@ -316,15 +317,15 @@ sub GCALVIEW_Start($)
 
 sub GCALVIEW_DoRun(@)
 {
-  my ($string) = @_;
-  my ($name, $timeout) = split("\\|", $string);
+  my ($name) = @_;
   my @calList = ();
   my $calData = '';
   my $result;
   my $calendarDays = AttrVal($name, 'calendarDays', undef);
   my $calendarPeriod = '';
   my $calFilter = AttrVal($name, 'calendarFilter', undef);
-  my $includeStarted = (1 == AttrVal($name, 'includeStarted', 0) ? '--started' : '');
+  my $noStarted = (0 == AttrVal($name, 'includeStarted', 1) ? '--nostarted' : '');
+  my $noCache = (0 == AttrVal($name, 'cache', 1) ? '--nocache' : '');
   my ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) = localtime(time);
   my $today = sprintf('%02d/%02d/%04d', $mon + 1, $mday, $year + 1900);
    
@@ -377,11 +378,11 @@ sub GCALVIEW_DoRun(@)
   }
   
   # get all calendar entries
-  ($calData, $result) = ($_ = qx(gcalcli agenda $calendarPeriod $calFilter --detail_all $includeStarted --tsv 2>&1), $? >> 8);  
+  ($calData, $result) = ($_ = qx(gcalcli agenda $calendarPeriod $calFilter --detail_all $noStarted $noCache --tsv 2>&1), $? >> 8);  
   
   if (0 != $result)
   {
-    Log3 $name, 3, $name.": gcalcli agenda $calendarPeriod $calFilter --detail_all $includeStarted --tsv";
+    Log3 $name, 3, $name.": gcalcli agenda $calendarPeriod $calFilter --detail_all $noStarted $noCache --tsv";
     Log3 $name, 3, $name.': something went wrong (check your parameters) - '.$calData if defined($calData);
     
     $calData = '';
@@ -830,9 +831,10 @@ sub GCALVIEW_DoAbort($)
     <li><b>calendarDays:</b> defines the timespan in days (start is today). the default timespan is 5 days.<br></li>
     <li><b>calendarType:</b> <ul><li>standard - output like 57_CALVIEW</li>
                                  <li>waste - output like 57_ABFALL</li></ul><br></li>
-    <li><b>includeStarted:</b> include appointments of today<br></li>
+    <li><b>includeStarted:</b> disable already started appointments of today (default: show already started appointments)<br></li>
     <li><b>maxEntries:</b> limit the maximum appointments (not more than 200 allowed)<br></li>
     <li><b>disable:</b> disable the module (no update anymore)<br></li>
+    <li><b>cache:</b> disable the caching of calendar requests (default: cache activated)<br></li>
     <li><b>filterSummary:</b> regex to filter a summary (whole appointment will be removed from output if the regex matches)<br></li>
     <li><b>filterLocation:</b> regex to filter a location (whole appointment will be removed from output if the regex matches)<br></li>
     <li><b>filterDescription:</b> regex to filter a description (whole appointment will be removed from output if the regex matches)<br></li>

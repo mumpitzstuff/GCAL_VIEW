@@ -1,1 +1,3 @@
-  - major update
+  - attribute cache added
+  - logic of includeStarted reversed (bugfix)
+  - fixed a problem with special german characters
