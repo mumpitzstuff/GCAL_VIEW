@@ -346,7 +346,7 @@ sub GCALVIEW_DoRun(@)
     }
     else
     {
-      #Log3 $name, 5, $name.': '.$calData;
+      Log3 $name, 5, $name.': '.$calData;
       
       while (m/(?:owner|reader)\s+(.+)\s*/g)
       {
@@ -405,7 +405,7 @@ sub GCALVIEW_DoRun(@)
     my $lastStartDate;
     
     
-    #Log3 $name, 5, $name.': '.$calData;
+    Log3 $name, 5, $name.': '.$calData;
     
     foreach $_ (@entry)
     {
