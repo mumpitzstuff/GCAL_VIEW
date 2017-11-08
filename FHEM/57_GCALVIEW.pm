@@ -301,17 +301,16 @@ sub GCALVIEW_Start($)
 
   return undef if (IsDisabled($hash->{NAME}));
 
-  if (!(exists($hash->{helper}{RUNNING_PID}))) 
-  {
-    GCALVIEW_SetNextTimer($hash, undef);
-    
-    $hash->{helper}{RUNNING_PID} = BlockingCall('GCALVIEW_DoRun', $hash->{NAME}, 'GCALVIEW_DoEnd', $hash->{TIMEOUT}, 'GCALVIEW_DoAbort', $hash);
-  } 
-  else 
+  if (exists($hash->{helper}{RUNNING_PID})) 
   {
     Log3 $hash->{NAME}, 3, $hash->{NAME}.' blocking call already running';
-    GCALVIEW_SetNextTimer($hash, undef);
+    
+    GCALVIEW_DoAbort($hash);
   }
+  
+  GCALVIEW_SetNextTimer($hash, undef);
+    
+  $hash->{helper}{RUNNING_PID} = BlockingCall('GCALVIEW_DoRun', $hash->{NAME}, 'GCALVIEW_DoEnd', $hash->{TIMEOUT}, 'GCALVIEW_DoAbort', $hash);
 }
 
 
