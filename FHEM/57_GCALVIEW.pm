@@ -15,6 +15,7 @@ use Blocking;
 use JSON;
 use utf8;
 use Encode qw(encode_utf8 decode_utf8);
+use Storable qw(freeze thaw);
 
 
 sub GCALVIEW_Initialize($)
@@ -479,7 +480,13 @@ sub GCALVIEW_DoRun(@)
     }
     
     # encode filtered calendar entries
-    $calData = encode_json(\@calStruct);
+    #$calData = eval {encode_json(\@calStruct)};
+    $calData = eval {encode_base64(freeze(\@calStruct), '')};
+    
+    if ($@) 
+    {           
+      Log3 $name, 3, $name.': encode_json failed: '.$@;
+    }
     
     #Log3 $name, 5, $name.': '.$calData;
   }
@@ -507,7 +514,13 @@ sub GCALVIEW_DoEnd($)
   
   # decode results
   $calList = decode_base64($calList);
-  @calData = @{decode_json($calDataJson)} if ('' ne $calDataJson);
+  #@calData = eval {@{decode_json($calDataJson)} if ('' ne $calDataJson)};
+  @calData = eval {@{thaw(decode_base64($calDataJson))} if ('' ne $calDataJson)};
+  
+  if ($@) 
+  {           
+    Log3 $name, 3, $name.': decode_json failed: '.$@;
+  }
   
   if ('' ne $calList)
   {
