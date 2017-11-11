@@ -409,12 +409,19 @@ sub GCALVIEW_DoRun(@)
     my $filterOverall = AttrVal($name, 'filterOverall', undef);
     my $calendarType = AttrVal($name, 'calendarType', 'standard');
     my $sourceColor;
-    my @sourceColors = split('\s*,\s*' , AttrVal($name, 'sourceColor', ''));
+    my @sourceColors = split('\s*,\s*' , decode_utf8(AttrVal($name, 'sourceColor', '')));
     my %groups;
     my $lastStartDate;
     
     
     Log3 $name, 5, $name.': '.$calData;
+    
+    $filterSummary = decode_utf8($filterSummary) if (defined($filterSummary));
+    $filterLocation = decode_utf8($filterLocation) if (defined($filterLocation));
+    $filterDescription = decode_utf8($filterDescription) if (defined($filterDescription));
+    $filterSource = decode_utf8($filterSource) if (defined($filterSource));
+    $filterAuthor = decode_utf8($filterAuthor) if (defined($filterAuthor));
+    $filterOverall = decode_utf8($filterOverall) if (defined($filterOverall));    
     
     foreach $_ (@entry)
     {
