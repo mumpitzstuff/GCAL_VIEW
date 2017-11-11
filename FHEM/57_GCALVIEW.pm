@@ -31,21 +31,22 @@ sub GCALVIEW_Initialize($)
   $hash->{AttrList} = 'updateInterval '.
                       'calendarDays '.
                       'calendarType:standard,waste '.
-                      'readingPrefix:1 '.
+                      'readingPrefix:0,1 '.
                       'wasteEventSeparator '.
                       'alldayText '.
                       'weekdayText '.
                       'maxEntries '.
-                      'includeStarted:0 '.
+                      'includeStarted:0,1 '.
                       'sourceColor:textField-long '.
-                      'disable:1 '.
-                      'cache:0 '.
+                      'disable:0,1 '.
+                      'cache:0,1 '.
                       'filterSummary '.
                       'filterLocation '.
                       'filterDescription '.
                       'filterSource '.
                       'filterAuthor '.
                       'filterOverall '.
+                      'configFolder '.
                       #'oauthToken '.
                       $readingFnAttributes;
 
@@ -125,8 +126,6 @@ sub GCALVIEW_Attr($$$$) {
     {
       if ($value eq '1')
       {
-        RemoveInternalTimer($hash);
-        
         readingsSingleUpdate($hash, 'state', 'disabled', 1);
       }
       else
@@ -326,20 +325,30 @@ sub GCALVIEW_DoRun(@)
   my $calFilter = AttrVal($name, 'calendarFilter', undef);
   my $noStarted = (0 == AttrVal($name, 'includeStarted', 1) ? '--nostarted' : '');
   my $noCache = (0 == AttrVal($name, 'cache', 1) ? '--nocache' : '');
+  my $configFolder = AttrVal($name, 'configFolder', undef);
   my ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) = localtime(time);
   my $today = sprintf('%02d/%02d/%04d', $mon + 1, $mday, $year + 1900);
    
   Log3 $name, 5, $name.'_DoRun: start running';
   
+  if (defined($configFolder))
+  {
+    $configFolder = '--configFolder '.$configFolder;
+  }
+  else
+  {
+    $configFolder = '';
+  }
+  
   # calendar filter attribute already set? 
   if (!defined($calFilter))
   {
     # get list of calendars
-    ($calData, $result) = ($_ = qx(gcalcli list 2>&1), $? >> 8);
+    ($calData, $result) = ($_ = decode_utf8(qx(gcalcli list $configFolder 2>&1)), $? >> 8);
     
     if (0 != $result)
     {
-      Log3 $name, 3, $name.": gcalcli list";
+      Log3 $name, 3, $name.': gcalcli list '.$configFolder;
       Log3 $name, 3, $name.': something went wrong (check your parameters) - '.$calData if defined($calData);
       
       $calData = '';
@@ -378,11 +387,11 @@ sub GCALVIEW_DoRun(@)
   }
   
   # get all calendar entries
-  ($calData, $result) = ($_ = qx(gcalcli agenda $calendarPeriod $calFilter --detail_all $noStarted $noCache --tsv 2>&1), $? >> 8);  
+  ($calData, $result) = ($_ = decode_utf8(qx(gcalcli agenda $calendarPeriod $configFolder $calFilter --detail_all $noStarted $noCache --tsv 2>&1)), $? >> 8);  
   
   if (0 != $result)
   {
-    Log3 $name, 3, $name.": gcalcli agenda $calendarPeriod $calFilter --detail_all $noStarted $noCache --tsv";
+    Log3 $name, 3, $name.": gcalcli agenda $calendarPeriod $configFolder $calFilter --detail_all $noStarted $noCache --tsv";
     Log3 $name, 3, $name.': something went wrong (check your parameters) - '.$calData if defined($calData);
     
     $calData = '';
@@ -480,12 +489,11 @@ sub GCALVIEW_DoRun(@)
     }
     
     # encode filtered calendar entries
-    #$calData = eval {encode_json(\@calStruct)};
     $calData = eval {encode_base64(freeze(\@calStruct), '')};
     
     if ($@) 
     {           
-      Log3 $name, 3, $name.': encode_json failed: '.$@;
+      Log3 $name, 3, $name.': encode of calendar data failed: '.$@;
     }
     
     #Log3 $name, 5, $name.': '.$calData;
@@ -501,7 +509,7 @@ sub GCALVIEW_DoRun(@)
 sub GCALVIEW_DoEnd($)
 {
   my ($string) = @_;
-  my ($name, $calList, $calDataJson) = split("\\|", $string);
+  my ($name, $calList, $calDataEnc) = split("\\|", $string);
   my $hash = $defs{$name};
   my @calData = ();
   my $cterm_new = 0;
@@ -514,18 +522,17 @@ sub GCALVIEW_DoEnd($)
   
   # decode results
   $calList = decode_base64($calList);
-  #@calData = eval {@{decode_json($calDataJson)} if ('' ne $calDataJson)};
-  @calData = eval {@{thaw(decode_base64($calDataJson))} if ('' ne $calDataJson)};
+  @calData = eval {@{thaw(decode_base64($calDataEnc))} if ('' ne $calDataEnc)};
   
   if ($@) 
   {           
-    Log3 $name, 3, $name.': decode_json failed: '.$@;
+    Log3 $name, 3, $name.': decode of calendar data failed: '.$@;
   }
   
   if ('' ne $calList)
   {
     $calList =~ s/\s/#/g;
-    addToDevAttrList($name, 'calendarFilter:multiple-strict,'.$calList);
+    addToDevAttrList($name, encode_utf8('calendarFilter:multiple-strict,'.$calList));
   }
   
   # clear all readings
@@ -655,22 +662,18 @@ sub GCALVIEW_DoEnd($)
           
           if ('waste' eq $calendarType)
           {
-            my $readingName = decode('UTF-8', $summary);
+            my $readingName = $summary;
             $readingName =~ s/ /_/g;
-            eval 
-            {
-              use utf8;
-              $readingName =~ s/([äÄüÜöÖß])/$umlaute{$1}/eg;
-            };
+            $readingName =~ s/([äÄüÜöÖß])/$umlaute{$1}/eg;
             $readingName =~ tr/a-zA-Z0-9\-_//dc;
-            
-            readingsBulkUpdate($hash, $readingPrefix[$i].$readingName.'_date', $startDateStr);
-            readingsBulkUpdate($hash, $readingPrefix[$i].$readingName.'_days', $daysleft);
-            readingsBulkUpdate($hash, $readingPrefix[$i].$readingName.'_location', $location);
-            readingsBulkUpdate($hash, $readingPrefix[$i].$readingName.'_description', $description);
-            readingsBulkUpdate($hash, $readingPrefix[$i].$readingName.'_text', $summary);
-            readingsBulkUpdate($hash, $readingPrefix[$i].$readingName.'_weekday', $weekdayStr);
-            readingsBulkUpdate($hash, $readingPrefix[$i].$readingName.'_url', '<html><a href="'.$url.'" target="_blank">link</a></html>');
+                        
+            readingsBulkUpdate($hash, encode_utf8($readingPrefix[$i].$readingName.'_date'), encode_utf8($startDateStr));
+            readingsBulkUpdate($hash, encode_utf8($readingPrefix[$i].$readingName.'_days'), encode_utf8($daysleft));
+            readingsBulkUpdate($hash, encode_utf8($readingPrefix[$i].$readingName.'_location'), encode_utf8($location));
+            readingsBulkUpdate($hash, encode_utf8($readingPrefix[$i].$readingName.'_description'), encode_utf8($description));
+            readingsBulkUpdate($hash, encode_utf8($readingPrefix[$i].$readingName.'_text'), encode_utf8($summary));
+            readingsBulkUpdate($hash, encode_utf8($readingPrefix[$i].$readingName.'_weekday'), encode_utf8($weekdayStr));
+            readingsBulkUpdate($hash, encode_utf8($readingPrefix[$i].$readingName.'_url'), encode_utf8('<html><a href="'.$url.'" target="_blank">link</a></html>'));
 
             if (0 == $daysleft)
             {
@@ -679,17 +682,17 @@ sub GCALVIEW_DoEnd($)
                 $nowText .= $wasteEventSeparator.$summary;
                 $nowDescription .= $wasteEventSeparator.$description if ($nowDescription ne $description);
                 
-                readingsBulkUpdate($hash, 'now_text', $nowText);
-                readingsBulkUpdate($hash, 'now_description', $nowDescription);
+                readingsBulkUpdate($hash, 'now_text', encode_utf8($nowText));
+                readingsBulkUpdate($hash, 'now_description', encode_utf8($nowDescription));
               }
               else
               {
-                readingsBulkUpdate($hash, 'now_date', $startDateStr);
-                readingsBulkUpdate($hash, 'now_location', $location);
-                readingsBulkUpdate($hash, 'now_description', $description);
-                readingsBulkUpdate($hash, 'now_text', $summary);
-                readingsBulkUpdate($hash, 'now_weekday', $weekdayStr);
-                readingsBulkUpdate($hash, 'now_url', '<html><a href="'.$url.'" target="_blank">link</a></html>');
+                readingsBulkUpdate($hash, 'now_date', encode_utf8($startDateStr));
+                readingsBulkUpdate($hash, 'now_location', encode_utf8($location));
+                readingsBulkUpdate($hash, 'now_description', encode_utf8($description));
+                readingsBulkUpdate($hash, 'now_text', encode_utf8($summary));
+                readingsBulkUpdate($hash, 'now_weekday', encode_utf8($weekdayStr));
+                readingsBulkUpdate($hash, 'now_url', encode_utf8('<html><a href="'.$url.'" target="_blank">link</a></html>'));
               
                 $nowText = $summary;
                 $nowDescription = $description;
@@ -703,19 +706,19 @@ sub GCALVIEW_DoEnd($)
                 $nextText .= $wasteEventSeparator.$summary;
                 $nextDescription .= $wasteEventSeparator.$description if ($nextDescription ne $description);
                 
-                readingsBulkUpdate($hash, 'next_text', $nextText);
-                readingsBulkUpdate($hash, 'next_description', $nextDescription);
+                readingsBulkUpdate($hash, 'next_text', encode_utf8($nextText));
+                readingsBulkUpdate($hash, 'next_description', encode_utf8($nextDescription));
               }
             }
             elsif ($daysleft > 0)
             {
-              readingsBulkUpdate($hash, 'next_date', $startDateStr);
-              readingsBulkUpdate($hash, 'next_days', $daysleft);
-              readingsBulkUpdate($hash, 'next_location', $location);
-              readingsBulkUpdate($hash, 'next_description', $description);
-              readingsBulkUpdate($hash, 'next_text', $summary);
-              readingsBulkUpdate($hash, 'next_weekday', $weekdayStr);
-              readingsBulkUpdate($hash, 'next_url', '<html><a href="'.$url.'" target="_blank">link</a></html>');
+              readingsBulkUpdate($hash, 'next_date', encode_utf8($startDateStr));
+              readingsBulkUpdate($hash, 'next_days', encode_utf8($daysleft));
+              readingsBulkUpdate($hash, 'next_location', encode_utf8($location));
+              readingsBulkUpdate($hash, 'next_description', encode_utf8($description));
+              readingsBulkUpdate($hash, 'next_text', encode_utf8($summary));
+              readingsBulkUpdate($hash, 'next_weekday', encode_utf8($weekdayStr));
+              readingsBulkUpdate($hash, 'next_url', encode_utf8('<html><a href="'.$url.'" target="_blank">link</a></html>'));
               
               $nextDate = $startDateStr;
               $nextText = $summary;
@@ -725,21 +728,21 @@ sub GCALVIEW_DoEnd($)
           }
           else
           {          
-            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_bdate', $startDateStr);
-            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_btime', $startTime);
-            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_daysleft', $daysleft);
-            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_daysleftLong', $daysleftLong);
-            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_edate', $endDateStr);
-            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_etime', $endTime);
-            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_location', $location);
-            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_description', $description);
-            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_author', $author);
-            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_source', $calendar);
-            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_sourcecolor', $sourceColor);
-            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_summary', $summary);
-            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_timeshort', $timeShort);
-            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_weekday', $weekdayStr);
-            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_url', '<html><a href="'.$url.'" target="_blank">link</a></html>');
+            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_bdate', encode_utf8($startDateStr));
+            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_btime', encode_utf8($startTime));
+            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_daysleft', encode_utf8($daysleft));
+            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_daysleftLong', encode_utf8($daysleftLong));
+            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_edate', encode_utf8($endDateStr));
+            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_etime', encode_utf8($endTime));
+            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_location', encode_utf8($location));
+            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_description', encode_utf8($description));
+            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_author', encode_utf8($author));
+            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_source', encode_utf8($calendar));
+            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_sourcecolor', encode_utf8($sourceColor));
+            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_summary', encode_utf8($summary));
+            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_timeshort', encode_utf8($timeShort));
+            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_weekday', encode_utf8($weekdayStr));
+            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_url', encode_utf8('<html><a href="'.$url.'" target="_blank">link</a></html>'));
           }
           
           $$counter++;
@@ -752,14 +755,14 @@ sub GCALVIEW_DoEnd($)
         
   if ('waste' eq $calendarType)
   {
-    readingsBulkUpdate($hash, 'state', $daysUntilNext);
+    readingsBulkUpdate($hash, 'state', encode_utf8($daysUntilNext));
   }
   else
   {
-    readingsBulkUpdate($hash, 'c-term', $cterm_new);
-    readingsBulkUpdate($hash, 'c-today', $ctoday_new);
-    readingsBulkUpdate($hash, 'c-tomorrow', $ctomorrow_new);
-    readingsBulkUpdate($hash, 'state', 't: '.$cterm_new.' td: '.$ctoday_new.' tm: '.$ctomorrow_new);
+    readingsBulkUpdate($hash, 'c-term', encode_utf8($cterm_new));
+    readingsBulkUpdate($hash, 'c-today', encode_utf8($ctoday_new));
+    readingsBulkUpdate($hash, 'c-tomorrow', encode_utf8($ctomorrow_new));
+    readingsBulkUpdate($hash, 'state', encode_utf8('t: '.$cterm_new.' td: '.$ctoday_new.' tm: '.$ctomorrow_new));
   }
   readingsEndUpdate($hash, 1); 
   
@@ -858,6 +861,7 @@ sub GCALVIEW_DoAbort($)
     <li><b>readingPrefix:</b> calendar name is used as reading prefix if type waste is active<br></li>
     <li><b>sourceColor:</b> set a color string based on source (Format: source:color,source:color,...)<br></li>
     <li><b>wasteEventSeparator:</b> separator for waste events if there are more than 1 event in one day<br></li>
+    <li><b>configFolder:</b> path to authorization data of gcalcli (can only be used if the authorization procedure was done with the same --configFolder &lt;path&gt; parameter!)<br></li>
     <br>
   </ul>
 </ul>

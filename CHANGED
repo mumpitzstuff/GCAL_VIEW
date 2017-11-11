@@ -1,1 +1,3 @@
-  - fixed a problem with json encode/decode
+  - utf8 handling improved
+  - missing 0 or 1 settings added to some attributes
+  - attribute configFolder added
