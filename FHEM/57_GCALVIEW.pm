@@ -12,7 +12,6 @@ package main;
 use strict;
 use warnings;
 use Blocking;
-use JSON;
 use utf8;
 use Encode qw(encode_utf8 decode_utf8);
 use Storable qw(freeze thaw);
@@ -73,7 +72,7 @@ sub GCALVIEW_Define($$)
   
   readingsSingleUpdate($hash, 'state', 'Initialized', 1);
 
-  Log3 $name, 3, 'GCALVIEW defined with timeout '.$timeout;
+  Log3 $name, 3, $name.'defined with timeout '.$timeout;
 
   return undef;
 }
@@ -331,6 +330,11 @@ sub GCALVIEW_DoRun(@)
    
   Log3 $name, 5, $name.'_DoRun: start running';
   
+  # prepare input values
+  $calendarDays = decode_utf8($calendarDays) if (defined($calendarDays));
+  $calFilter = decode_utf8($calFilter) if (defined($calFilter));
+  $configFolder = decode_utf8($configFolder) if (defined($configFolder));
+  
   if (defined($configFolder))
   {
     $configFolder = '--configFolder '.$configFolder;
@@ -416,12 +420,14 @@ sub GCALVIEW_DoRun(@)
     
     Log3 $name, 5, $name.': '.$calData;
     
+    # prepare input values
     $filterSummary = decode_utf8($filterSummary) if (defined($filterSummary));
     $filterLocation = decode_utf8($filterLocation) if (defined($filterLocation));
     $filterDescription = decode_utf8($filterDescription) if (defined($filterDescription));
     $filterSource = decode_utf8($filterSource) if (defined($filterSource));
     $filterAuthor = decode_utf8($filterAuthor) if (defined($filterAuthor));
-    $filterOverall = decode_utf8($filterOverall) if (defined($filterOverall));    
+    $filterOverall = decode_utf8($filterOverall) if (defined($filterOverall)); 
+    $calendarType = decode_utf8($calendarType) if (defined($calendarType));    
     
     foreach $_ (@entry)
     {
@@ -527,6 +533,9 @@ sub GCALVIEW_DoEnd($)
      
   Log3 $name, 5, $name.'_DoEnd: end running';
   
+  # prepare input values
+  $calendarType = decode_utf8($calendarType) if (defined($calendarType));
+  
   # decode results
   $calList = decode_base64($calList);
   @calData = eval {@{thaw(decode_base64($calDataEnc))} if ('' ne $calDataEnc)};
@@ -566,6 +575,11 @@ sub GCALVIEW_DoEnd($)
     my $nextDescription = '';
     my %umlaute = ("ä" => "ae", "Ä" => "Ae", "ü" => "ue", "Ü" => "Ue", "ö" => "oe", "Ö" => "Oe", "ß" => "ss");
       
+    # prepare input values
+    $weekDayArr = decode_utf8($weekDayArr) if (defined($weekDayArr));
+    $alldayText = decode_utf8($alldayText) if (defined($alldayText));
+    $wasteEventSeparator = decode_utf8($wasteEventSeparator) if (defined($wasteEventSeparator));
+    
     foreach (@calData)
     {
       # mapping

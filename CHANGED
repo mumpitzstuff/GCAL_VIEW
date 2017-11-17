@@ -1,3 +1,1 @@
-  - utf8 handling improved
-  - missing 0 or 1 settings added to some attributes
-  - attribute configFolder added
+  - utf8 handling fixed for some attributes
