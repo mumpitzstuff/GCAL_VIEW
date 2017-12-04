@@ -34,6 +34,7 @@ sub GCALVIEW_Initialize($)
                       'wasteEventSeparator '.
                       'alldayText '.
                       'weekdayText '.
+                      'daysLeftLongText '.
                       'maxEntries '.
                       'includeStarted:0,1 '.
                       'sourceColor:textField-long '.
@@ -183,6 +184,15 @@ sub GCALVIEW_Attr($$$$) {
       if (scalar(@_) != 7)
       {
         return 'weekdayText must be a comma separated list of 7 days: Monday,Tuesday,...';
+      }
+    }
+    elsif ($attribute eq 'daysLeftLongText')
+    {
+      @_ = split('\s*,\s*', $value);
+      
+      if (scalar(@_) != 3)
+      {
+        return 'daysLeftLongText must be a comma separated list with 3 parts (today, tomorrow and in x days). Use % as number of days. default: today,tomorrow,in % days';
       }
     }
     elsif ($attribute eq 'filterSummary' ||
@@ -566,6 +576,8 @@ sub GCALVIEW_DoEnd($)
     my $tomorrow = sprintf('%02d.%02d.%04d', $mday, $mon + 1, $year + 1900); 
     my $weekDayArr = AttrVal($name, 'weekdayText', undef);
     my $alldayText = AttrVal($name, 'alldayText', 'all-day');
+    my $daysLeftLongText = AttrVal($name, 'daysLeftLongText', 'today,tomorrow,in % days');
+    my @daysLeftLongArr;
     my $wasteEventSeparator = AttrVal($name, 'wasteEventSeparator', ' and ');
     my @readingPrefix = ('standard' eq $calendarType) ? ('t_', 'today_', 'tomorrow_') : ((1 == AttrVal($name, 'readingPrefix', 0)) ? ($name.'_') : (''));
     my $nowText = undef;
@@ -578,6 +590,8 @@ sub GCALVIEW_DoEnd($)
     # prepare input values
     $weekDayArr = decode_utf8($weekDayArr) if (defined($weekDayArr));
     $alldayText = decode_utf8($alldayText) if (defined($alldayText));
+    $daysLeftLongText = decode_utf8($daysLeftLongText) if (defined($daysLeftLongText));
+    @daysLeftLongArr = split('\s*,\s*', $daysLeftLongText);
     $wasteEventSeparator = decode_utf8($wasteEventSeparator) if (defined($wasteEventSeparator));
     
     foreach (@calData)
@@ -624,15 +638,16 @@ sub GCALVIEW_DoEnd($)
       # generate string daysleft
       if (0 == $daysleft)
       {
-        $daysleftLong = 'today';
+        $daysleftLong = $daysLeftLongArr[0];
       }
       elsif (1 == $daysleft)
       {
-        $daysleftLong = 'tomorrow';
+        $daysleftLong = $daysLeftLongArr[1];
       }
       else
       {
-        $daysleftLong = 'in '.$daysleft.' days';
+        $daysleftLong = $daysLeftLongArr[2];
+        $daysleftLong =~ s/%/$daysleft/;
       }
       
       # generate timeshort
@@ -879,6 +894,7 @@ sub GCALVIEW_DoAbort($)
     <li><b>filterOverall:</b> regex to filter a summary, location, description, source or author (whole appointment will be removed from output if the regex matches)<br></li>
     <li><b>alldayText:</b> set the text for an allday event (default: all-day)<br></li>
     <li><b>weekdayText:</b> set the weekday text as comma separated list (default: Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday)<br></li>
+    <li><b>daysLeftLongText:</b> set the daysLeftLong text as comma separated list. % in part 3 is replaced by the number of days. (default: today,tomorrow,in % days)<br></li>
     <li><b>readingPrefix:</b> calendar name is used as reading prefix if type waste is active<br></li>
     <li><b>sourceColor:</b> set a color string based on source (Format: source:color,source:color,...)<br></li>
     <li><b>wasteEventSeparator:</b> separator for waste events if there are more than 1 event in one day<br></li>
