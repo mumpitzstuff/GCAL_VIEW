@@ -23,7 +23,7 @@ sub GCALVIEW_Initialize($)
 
   $hash->{DefFn}    = 'GCALVIEW_Define';
   $hash->{UndefFn}  = 'GCALVIEW_Undefine';
-  $hash->{NotifyFn} = 'GCALVIEW_Notify'; 
+  $hash->{NotifyFn} = 'GCALVIEW_Notify';
   $hash->{SetFn}    = 'GCALVIEW_Set';
   $hash->{GetFn}    = 'GCALVIEW_Get';
   $hash->{AttrFn}   = 'GCALVIEW_Attr';
@@ -38,6 +38,7 @@ sub GCALVIEW_Initialize($)
                       'maxEntries '.
                       'includeStarted:0,1 '.
                       'sourceColor:textField-long '.
+                      'showAge:0,1 '.
                       'disable:0,1 '.
                       'cache:0,1 '.
                       'filterSummary '.
@@ -58,19 +59,19 @@ sub GCALVIEW_Define($$)
 {
   my ($hash, $def) = @_;
   my @args = split("[ \t][ \t]*", $def);
-  
+
   return 'Usage: define <name> GCALVIEW <timeout>'  if (@args < 3);
-  
+
   my ($name, $type, $timeout) = @args;
   return 'The timeout value has to be at least 10s'  if ($timeout < 10);
-  
-  $hash->{NOTIFYDEV} = 'global'; 
+
+  $hash->{NOTIFYDEV} = 'global';
   $hash->{TIMEOUT} = $timeout;
 
   delete $hash->{helper}{RUNNING_PID};
-  
+
   $attr{$name}{'updateInterval'} = 3600 if (!defined($attr{$name}{'updateInterval'}));
-  
+
   readingsSingleUpdate($hash, 'state', 'Initialized', 1);
 
   Log3 $name, 3, $name.'defined with timeout '.$timeout;
@@ -82,10 +83,10 @@ sub GCALVIEW_Define($$)
 sub GCALVIEW_Undefine($$)
 {
   my ($hash, $arg) = @_;
-  
+
   RemoveInternalTimer($hash);
   BlockingKill($hash->{helper}{RUNNING_PID}) if (defined($hash->{helper}{RUNNING_PID}));
-  
+
   return undef;
 }
 
@@ -93,10 +94,10 @@ sub GCALVIEW_Undefine($$)
 sub GCALVIEW_Notify($$)
 {
   my ($hash, $dev) = @_;
-  
+
   return if (!grep(m/^INITIALIZED|REREADCFG$/, @{$dev->{CHANGED}}));
 
-  if (IsDisabled($hash->{NAME})) 
+  if (IsDisabled($hash->{NAME}))
   {
     readingsSingleUpdate($hash, 'state', 'disabled', 0);
   }
@@ -104,16 +105,16 @@ sub GCALVIEW_Notify($$)
   {
     GCALVIEW_SetNextTimer($hash, 15);
   }
-  
+
   return undef;
-} 
+}
 
 
 sub GCALVIEW_Attr($$$$) {
   my ($command, $name, $attribute, $value) = @_;
   my $hash = $defs{$name};
 
-  if ($command eq 'set') 
+  if ($command eq 'set')
   {
     if ($attribute eq 'updateInterval')
     {
@@ -131,7 +132,7 @@ sub GCALVIEW_Attr($$$$) {
       else
       {
         GCALVIEW_SetNextTimer($hash, 0);
-        
+
         readingsSingleUpdate($hash, 'state', 'Initialized', 1);
       }
     }
@@ -146,13 +147,13 @@ sub GCALVIEW_Attr($$$$) {
     {
       my $fail = 0;
       my @sourceColors = split('\s*,\s*' , $value);
-            
+
       if (@sourceColors)
       {
         foreach (@sourceColors)
-        { 
+        {
           @_ = split('\s*:\s*', $_);
-          
+
           if (!@_)
           {
             $fail = 1;
@@ -164,7 +165,7 @@ sub GCALVIEW_Attr($$$$) {
       {
         $fail = 1;
       }
-      
+
       if ($fail)
       {
         return 'sourceColor is required in format: <source>:<color>,<source>:<color>,...';
@@ -180,7 +181,7 @@ sub GCALVIEW_Attr($$$$) {
     elsif ($attribute eq 'weekdayText')
     {
       @_ = split('\s*,\s*', $value);
-      
+
       if (scalar(@_) != 7)
       {
         return 'weekdayText must be a comma separated list of 7 days: Monday,Tuesday,...';
@@ -189,7 +190,7 @@ sub GCALVIEW_Attr($$$$) {
     elsif ($attribute eq 'daysLeftLongText')
     {
       @_ = split('\s*,\s*', $value);
-      
+
       if (scalar(@_) != 3)
       {
         return 'daysLeftLongText must be a comma separated list with 3 parts (today, tomorrow and in x days). Use % as number of days. default: today,tomorrow,in % days';
@@ -203,36 +204,36 @@ sub GCALVIEW_Attr($$$$) {
            $attribute eq 'filterOverall')
     {
       eval{qr/$value/};
-      
+
       if ($@)
       {
         return 'regular expression is wrong: '.$@;
-      }        
+      }
     }
     #elsif ($attribute eq 'oauthToken')
     #{
       #my ($fh, $filename) = tempfile();
       #
       #print($fh, $value."\n");
-      #seek($fh, 0, 0);      
+      #seek($fh, 0, 0);
       #
       #my $calList = qx(gcalcli list --noauth_local_webserver < $filename);
-      #   
+      #
       #if ($? || $stdout !~ /Authentication successful/)
       #{
       #  Log3 $name, 3, $name.': something went wrong (oauth token can not be set) - '.$stdout;
-      #  
+      #
       #  return 'Authentication failed!';
       #}
       #else
       #{
       #  Log3 $name, 3, $name.': Authentication successfully completed.';
-      #  
+      #
       #  return 'Authentication successfully completed! stdout: '.$stdout.' stderr: '.$stderr;
       #}
     #}
   }
- 
+
   return undef;
 }
 
@@ -240,9 +241,9 @@ sub GCALVIEW_Attr($$$$) {
 sub GCALVIEW_SetNextTimer($$)
 {
   my ($hash, $timer) = @_;
-  
+
   Log3 $hash->{NAME}, 5, $hash->{NAME}.'_SetNextTimer: set next timer';
-  
+
   RemoveInternalTimer($hash);
   if (!defined($timer))
   {
@@ -258,15 +259,15 @@ sub GCALVIEW_SetNextTimer($$)
 sub GCALVIEW_Set($$@) {
   my ($hash, $name, @aa) = @_;
   my ($cmd, $arg) = @aa;
-    
-  if ($cmd eq 'update') 
+
+  if ($cmd eq 'update')
   {
     GCALVIEW_Start($hash);
   }
-  else 
+  else
   {
     my $list = 'update:noArg';
-      
+
     return 'Unknown argument '.$cmd.', choose one of '.$list;
   }
 
@@ -277,31 +278,31 @@ sub GCALVIEW_Set($$@) {
 sub GCALVIEW_Get($$@) {
   my ($hash, $name, @aa) = @_;
   my ($cmd, $arg) = @aa;
-    
-  #if ($cmd eq 'authenticationURL') 
+
+  #if ($cmd eq 'authenticationURL')
   #{
   #  my ($calList, $result) = ($_ = qx(gcalcli list --noauth_local_webserver 2>&1 /dev/null), $? >> 8);
-  #      
+  #
   #  if ((0 != $result) &&
-  #      ($calList =~ /(https\:\/\/accounts\.google\.com[^\n]+)/)) 
+  #      ($calList =~ /(https\:\/\/accounts\.google\.com[^\n]+)/))
   #  {
-  #    return $1;      
+  #    return $1;
   #  }
   #  else
-  #  {      
+  #  {
   #    # nothing to do because already authenticated
   #    return 'Authentication seems to be already done.';
   #  }
   #}
-  #else 
+  #else
   #{
   #  my $list = 'authenticationURL:noArg';
-  #    
+  #
   #  return 'Unknown argument '.$cmd.', choose one of '.$list;
   #}
 
   return undef;
-} 
+}
 
 
 sub GCALVIEW_Start($)
@@ -310,15 +311,15 @@ sub GCALVIEW_Start($)
 
   return undef if (IsDisabled($hash->{NAME}));
 
-  if (exists($hash->{helper}{RUNNING_PID})) 
+  if (exists($hash->{helper}{RUNNING_PID}))
   {
     Log3 $hash->{NAME}, 3, $hash->{NAME}.' blocking call already running';
-    
+
     GCALVIEW_DoAbort($hash);
   }
-  
+
   GCALVIEW_SetNextTimer($hash, undef);
-    
+
   $hash->{helper}{RUNNING_PID} = BlockingCall('GCALVIEW_DoRun', $hash->{NAME}, 'GCALVIEW_DoEnd', $hash->{TIMEOUT}, 'GCALVIEW_DoAbort', $hash);
 }
 
@@ -337,14 +338,14 @@ sub GCALVIEW_DoRun(@)
   my $configFolder = AttrVal($name, 'configFolder', undef);
   my ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) = localtime(time);
   my $today = sprintf('%02d/%02d/%04d', $mon + 1, $mday, $year + 1900);
-   
+
   Log3 $name, 5, $name.'_DoRun: start running';
-  
+
   # prepare input values
   $calendarDays = decode_utf8($calendarDays) if (defined($calendarDays));
   $calFilter = decode_utf8($calFilter) if (defined($calFilter));
   $configFolder = decode_utf8($configFolder) if (defined($configFolder));
-  
+
   if (defined($configFolder))
   {
     $configFolder = '--configFolder '.$configFolder;
@@ -353,61 +354,61 @@ sub GCALVIEW_DoRun(@)
   {
     $configFolder = '';
   }
-  
-  # calendar filter attribute already set? 
+
+  # calendar filter attribute already set?
   if (!defined($calFilter))
   {
     # get list of calendars
     ($calData, $result) = ($_ = decode_utf8(qx(gcalcli list $configFolder 2>&1)), $? >> 8);
-    
+
     if (0 != $result)
     {
       Log3 $name, 3, $name.': gcalcli list '.$configFolder;
       Log3 $name, 3, $name.': something went wrong (check your parameters) - '.$calData if defined($calData);
-      
+
       $calData = '';
     }
     else
     {
       Log3 $name, 5, $name.': '.$calData;
-      
+
       while (m/(?:owner|reader)\s+(.+)\s*/g)
       {
         push(@calList, $1);
       }
     }
-    
+
     $calFilter = '';
   }
   else
   {
     # filter calendars if attribute calFilter is available
     @_ = split(/\s*,\s*/, $calFilter);
-    
-    for (@_) 
+
+    for (@_)
     {
       $_ = '"'.$_.'"';
     }
-    
+
     $calFilter = '--calendar '.join(' --calendar ', @_);
   }
-  
+
   # calculate end date if needed (5 days is the default)
   if (defined($calendarDays))
   {
     ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) = localtime(time + (86400 * $calendarDays));
-    
+
     $calendarPeriod = $today.' '.sprintf('%02d/%02d/%04d', $mon + 1, $mday, $year + 1900);
   }
-  
+
   # get all calendar entries
-  ($calData, $result) = ($_ = decode_utf8(qx(gcalcli agenda $calendarPeriod $configFolder $calFilter --detail_all $noStarted $noCache --tsv 2>&1)), $? >> 8);  
-  
+  ($calData, $result) = ($_ = decode_utf8(qx(gcalcli agenda $calendarPeriod $configFolder $calFilter --detail_all $noStarted $noCache --tsv 2>&1)), $? >> 8);
+
   if (0 != $result)
   {
     Log3 $name, 3, $name.": gcalcli agenda $calendarPeriod $configFolder $calFilter --detail_all $noStarted $noCache --tsv";
     Log3 $name, 3, $name.': something went wrong (check your parameters) - '.$calData if defined($calData);
-    
+
     $calData = '';
   }
   else
@@ -426,24 +427,24 @@ sub GCALVIEW_DoRun(@)
     my @sourceColors = split('\s*,\s*' , decode_utf8(AttrVal($name, 'sourceColor', '')));
     my %groups;
     my $lastStartDate;
-    
-    
+
+
     Log3 $name, 5, $name.': '.$calData;
-    
+
     # prepare input values
     $filterSummary = decode_utf8($filterSummary) if (defined($filterSummary));
     $filterLocation = decode_utf8($filterLocation) if (defined($filterLocation));
     $filterDescription = decode_utf8($filterDescription) if (defined($filterDescription));
     $filterSource = decode_utf8($filterSource) if (defined($filterSource));
     $filterAuthor = decode_utf8($filterAuthor) if (defined($filterAuthor));
-    $filterOverall = decode_utf8($filterOverall) if (defined($filterOverall)); 
-    $calendarType = decode_utf8($calendarType) if (defined($calendarType));    
-    
+    $filterOverall = decode_utf8($filterOverall) if (defined($filterOverall));
+    $calendarType = decode_utf8($calendarType) if (defined($calendarType));
+
     foreach $_ (@entry)
     {
       # split each line by tabs
       @_ = split("\t", $_);
-      
+
       # output must have exactly 11 fields of data
       if (11 == scalar(@_))
       {
@@ -453,17 +454,17 @@ sub GCALVIEW_DoRun(@)
                  (defined($filterDescription) && ($_[8] =~ /$filterDescription/)) ||
                  (defined($filterSource) && ($_[9] =~ /$filterSource/)) ||
                  (defined($filterAuthor) && ($_[10] =~ /$filterAuthor/)) ||
-                 (defined($filterOverall) && (($_[6] =~ /$filterOverall/) || 
+                 (defined($filterOverall) && (($_[6] =~ /$filterOverall/) ||
                                               ($_[7] =~ /$filterOverall/) ||
                                               ($_[8] =~ /$filterOverall/) ||
                                               ($_[9] =~ /$filterOverall/) ||
-                                              ($_[10] =~ /$filterOverall/))));      
-      
+                                              ($_[10] =~ /$filterOverall/))));
+
         # eliminate events with the same summary if type waste is active
         if ('waste' eq $calendarType)
         {
           #Log3 $name, 5, $name.': '.join(', ', @_);
-          
+
           if (!exists($groups{$_[6]}))
           {
             $groups{$_[6]} = 1;
@@ -472,36 +473,36 @@ sub GCALVIEW_DoRun(@)
           {
             next;
           }
-          
+
           # join the event with same start date
           #if (!defined($lastStartDate) ||
           #    ($lastStartDate ne $_[0]))
           #{
           #  $lastStartDate = $_[0];
-          #}          
+          #}
           #else
           #{
           #  # join the event summary
           #  $calStruct[$#calStruct][6] .= ' '.$_[6];
-          #  
+          #
           #  next;
           #}
         }
-        
+
         # generate source color and add an additional data field
         $sourceColor = 'white';
         foreach (@sourceColors)
-        { 
-          my ($source, $color) = split('\s*:\s*', $_); 
-          
+        {
+          my ($source, $color) = split('\s*:\s*', $_);
+
           if (-1 != index($_[9], $source))
-          { 
+          {
             $sourceColor = $color;
-            
+
             last;
           }
         };
-        
+
         push(@_, $sourceColor);
         push(@calStruct, [@_]);
       }
@@ -510,18 +511,18 @@ sub GCALVIEW_DoRun(@)
         Log3 $name, 3, $name.': something went wrong (invalid gcalcli output) - '.join(', ', @_);
       }
     }
-    
+
     # encode filtered calendar entries
     $calData = eval {encode_base64(freeze(\@calStruct), '')};
-    
-    if ($@) 
-    {           
+
+    if ($@)
+    {
       Log3 $name, 3, $name.': encode of calendar data failed: '.$@;
     }
-    
+
     #Log3 $name, 5, $name.': '.$calData;
   }
-  
+
   # encode calendar list
   $_ = encode_base64(join(',', @calList), '');
 
@@ -540,60 +541,61 @@ sub GCALVIEW_DoEnd($)
   my $ctomorrow_new = 0;
   my $calendarType = AttrVal($name, 'calendarType', 'standard');
   my $daysUntilNext = 0;
-     
+
   Log3 $name, 5, $name.'_DoEnd: end running';
-  
+
   # prepare input values
   $calendarType = decode_utf8($calendarType) if (defined($calendarType));
-  
+
   # decode results
   $calList = decode_base64($calList);
   @calData = eval {@{thaw(decode_base64($calDataEnc))} if ('' ne $calDataEnc)};
-  
-  if ($@) 
-  {           
+
+  if ($@)
+  {
     Log3 $name, 3, $name.': decode of calendar data failed: '.$@;
   }
-  
+
   if ('' ne $calList)
   {
     $calList =~ s/\s/#/g;
     addToDevAttrList($name, encode_utf8('calendarFilter:multiple-strict,'.$calList));
   }
-  
+
   # clear all readings
   delete($hash->{READINGS});
-  
+
   # start update of readings
   readingsBeginUpdate($hash);
-  
+
   if (scalar(@calData))
   {
     my ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) = localtime(time);
     my $weekday = $wday;
     my $today = sprintf('%02d.%02d.%04d', $mday, $mon + 1, $year + 1900);
     ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) = localtime(time + 86400);
-    my $tomorrow = sprintf('%02d.%02d.%04d', $mday, $mon + 1, $year + 1900); 
+    my $tomorrow = sprintf('%02d.%02d.%04d', $mday, $mon + 1, $year + 1900);
     my $weekDayArr = AttrVal($name, 'weekdayText', undef);
     my $alldayText = AttrVal($name, 'alldayText', 'all-day');
     my $daysLeftLongText = AttrVal($name, 'daysLeftLongText', 'today,tomorrow,in % days');
     my @daysLeftLongArr;
     my $wasteEventSeparator = AttrVal($name, 'wasteEventSeparator', ' and ');
     my @readingPrefix = ('standard' eq $calendarType) ? ('t_', 'today_', 'tomorrow_') : ((1 == AttrVal($name, 'readingPrefix', 0)) ? ($name.'_') : (''));
+    my $showAge = AttrVal($name, 'showAge', 0);
     my $nowText = undef;
     my $nowDescription = '';
     my $nextDate = undef;
     my $nextText = '';
     my $nextDescription = '';
     my %umlaute = ("ä" => "ae", "Ä" => "Ae", "ü" => "ue", "Ü" => "Ue", "ö" => "oe", "Ö" => "Oe", "ß" => "ss");
-      
+
     # prepare input values
     $weekDayArr = decode_utf8($weekDayArr) if (defined($weekDayArr));
     $alldayText = decode_utf8($alldayText) if (defined($alldayText));
     $daysLeftLongText = decode_utf8($daysLeftLongText) if (defined($daysLeftLongText));
     @daysLeftLongArr = split('\s*,\s*', $daysLeftLongText);
     $wasteEventSeparator = decode_utf8($wasteEventSeparator) if (defined($wasteEventSeparator));
-    
+
     foreach (@calData)
     {
       # mapping
@@ -610,7 +612,7 @@ sub GCALVIEW_DoEnd($)
       # 10 = author
       # additional generated attribute
       # 11 = sourcecolor
-            
+
       my $startDate = @$_[0];
       my $startTime = @$_[1];
       my $endDate = @$_[2];
@@ -631,10 +633,10 @@ sub GCALVIEW_DoEnd($)
       my $endDateStr = $endDay.'.'.$endMonth.'.'.$endYear;
       my $timeShort;
       my $weekdayStr;
-    
+
       # fix daysleft if event is already running
-      $daysleft = 0 if ($daysleft < 0);      
-      
+      $daysleft = 0 if ($daysleft < 0);
+
       # generate string daysleft
       if (0 == $daysleft)
       {
@@ -649,7 +651,7 @@ sub GCALVIEW_DoEnd($)
         $daysleftLong = $daysLeftLongArr[2];
         $daysleftLong =~ s/%/$daysleft/;
       }
-      
+
       # generate timeshort
       if (($startTime eq "00:00") && ($endTime eq "00:00") && ($startDate ne $endDate))
       {
@@ -659,28 +661,28 @@ sub GCALVIEW_DoEnd($)
       {
         $timeShort = $startTime.' - '.$endTime;
       }
-      
+
       # generate weekdaytext
       if (!defined($weekDayArr))
       {
         @_ = ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday');
-        $weekdayStr = $_[(($weekday - 1 + $daysleft) % 7)];        
+        $weekdayStr = $_[(($weekday - 1 + $daysleft) % 7)];
       }
       else
       {
         @_ = split('\s*,\s*', $weekDayArr);
         $weekdayStr = $_[(($weekday - 1 + $daysleft) % 7)];
       }
-      
+
       # loop 3 times to generate the overall appointment list, the appointment list for today and the appointment list for tomorrow
       for (my $i = 0; $i < 3; $i++)
       {
         if ((0 == $i) ||
-            ((1 == $i) && ('standard' eq $calendarType) && ($startDateStr eq $today)) || 
+            ((1 == $i) && ('standard' eq $calendarType) && ($startDateStr eq $today)) ||
             ((2 == $i) && ('standard' eq $calendarType) && ($startDateStr eq $tomorrow)))
         {
           my $counter;
-          
+
           if (0 == $i)
           {
             $counter = \$cterm_new;
@@ -693,16 +695,16 @@ sub GCALVIEW_DoEnd($)
           {
             $counter = \$ctomorrow_new;
           }
-          
+
           my $counterLength = 3 - length($$counter + 1);
-          
+
           if ('waste' eq $calendarType)
           {
             my $readingName = $summary;
             $readingName =~ s/ /_/g;
             $readingName =~ s/([äÄüÜöÖß])/$umlaute{$1}/eg;
             $readingName =~ tr/a-zA-Z0-9\-_//dc;
-                        
+
             readingsBulkUpdate($hash, encode_utf8($readingPrefix[$i].$readingName.'_date'), encode_utf8($startDateStr));
             readingsBulkUpdate($hash, encode_utf8($readingPrefix[$i].$readingName.'_days'), encode_utf8($daysleft));
             readingsBulkUpdate($hash, encode_utf8($readingPrefix[$i].$readingName.'_location'), encode_utf8($location));
@@ -717,7 +719,7 @@ sub GCALVIEW_DoEnd($)
               {
                 $nowText .= $wasteEventSeparator.$summary;
                 $nowDescription .= $wasteEventSeparator.$description if ($nowDescription ne $description);
-                
+
                 readingsBulkUpdate($hash, 'now_text', encode_utf8($nowText));
                 readingsBulkUpdate($hash, 'now_description', encode_utf8($nowDescription));
               }
@@ -729,19 +731,19 @@ sub GCALVIEW_DoEnd($)
                 readingsBulkUpdate($hash, 'now_text', encode_utf8($summary));
                 readingsBulkUpdate($hash, 'now_weekday', encode_utf8($weekdayStr));
                 readingsBulkUpdate($hash, 'now_url', encode_utf8('<html><a href="'.$url.'" target="_blank">link</a></html>'));
-              
+
                 $nowText = $summary;
                 $nowDescription = $description;
               }
             }
-            
+
             if (defined($nextDate))
             {
               if ($nextDate eq $startDateStr)
               {
                 $nextText .= $wasteEventSeparator.$summary;
                 $nextDescription .= $wasteEventSeparator.$description if ($nextDescription ne $description);
-                
+
                 readingsBulkUpdate($hash, 'next_text', encode_utf8($nextText));
                 readingsBulkUpdate($hash, 'next_description', encode_utf8($nextDescription));
               }
@@ -755,7 +757,7 @@ sub GCALVIEW_DoEnd($)
               readingsBulkUpdate($hash, 'next_text', encode_utf8($summary));
               readingsBulkUpdate($hash, 'next_weekday', encode_utf8($weekdayStr));
               readingsBulkUpdate($hash, 'next_url', encode_utf8('<html><a href="'.$url.'" target="_blank">link</a></html>'));
-              
+
               $nextDate = $startDateStr;
               $nextText = $summary;
               $nextDescription = $description;
@@ -763,7 +765,14 @@ sub GCALVIEW_DoEnd($)
             }
           }
           else
-          {          
+          {
+            my $age = -1;
+
+            if ($showAge && ($description =~ /((?:19|20|21)\d{2})/))
+            {
+              $age = $startYear - $1;
+            }
+
             readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_bdate', encode_utf8($startDateStr));
             readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_btime', encode_utf8($startTime));
             readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_daysleft', encode_utf8($daysleft));
@@ -778,17 +787,18 @@ sub GCALVIEW_DoEnd($)
             readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_summary', encode_utf8($summary));
             readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_timeshort', encode_utf8($timeShort));
             readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_weekday', encode_utf8($weekdayStr));
+            readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_age', encode_utf8($age)) if ($showAge && ($age >= 0));
             readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_url', encode_utf8('<html><a href="'.$url.'" target="_blank">link</a></html>'));
           }
-          
+
           $$counter++;
         }
       }
-      
+
       last if ($cterm_new >= AttrVal($name, 'maxEntries', 200));
     }
   }
-        
+
   if ('waste' eq $calendarType)
   {
     readingsBulkUpdate($hash, 'state', encode_utf8($daysUntilNext));
@@ -800,8 +810,8 @@ sub GCALVIEW_DoEnd($)
     readingsBulkUpdate($hash, 'c-tomorrow', encode_utf8($ctomorrow_new));
     readingsBulkUpdate($hash, 'state', encode_utf8('t: '.$cterm_new.' td: '.$ctoday_new.' tm: '.$ctomorrow_new));
   }
-  readingsEndUpdate($hash, 1); 
-  
+  readingsEndUpdate($hash, 1);
+
   delete($hash->{helper}{RUNNING_PID});
 }
 
@@ -809,9 +819,9 @@ sub GCALVIEW_DoEnd($)
 sub GCALVIEW_DoAbort($)
 {
   my ($hash) = @_;
-  
+
   delete($hash->{helper}{RUNNING_PID});
-  
+
   Log3 $hash->{NAME}, 3, 'BlockingCall for '.$hash->{NAME}.' aborted';
 }
 
@@ -827,10 +837,10 @@ sub GCALVIEW_DoAbort($)
   <u><b>Calender Viewer for Google Calendar</b></u>
   <br><br>
   This calendar can show you all events in a certain period of time. There are many options to filter
-  the data and adapt the output to your needs. This module has 2 modes, a standard mode which behaves like 
-  57_CALVIEW and a waste mode which behaves like 57_ABFALL. You can easily switch back and forth between 
-  the two modes to customize the calendar to suit your needs. The module is completely non blocking but 
-  needs to have gcalcli installed.   
+  the data and adapt the output to your needs. This module has 2 modes, a standard mode which behaves like
+  57_CALVIEW and a waste mode which behaves like 57_ABFALL. You can easily switch back and forth between
+  the two modes to customize the calendar to suit your needs. The module is completely non blocking but
+  needs to have gcalcli installed.
   <br><br>
   <a name="GCALVIEWinstallation"></a>
   <b>Installation</b>
@@ -863,7 +873,7 @@ sub GCALVIEW_DoAbort($)
       <code>define MyCalendar GCALVIEW 30</code><br>
     </ul>
     <br>
-    This command creates a calendar with the name MyCalendar. If the background update process takes more time than the 
+    This command creates a calendar with the name MyCalendar. If the background update process takes more time than the
     timeout value allows, this process is aborted.
   </ul>
   <br><br>
@@ -898,6 +908,7 @@ sub GCALVIEW_DoAbort($)
     <li><b>readingPrefix:</b> calendar name is used as reading prefix if type waste is active<br></li>
     <li><b>sourceColor:</b> set a color string based on source (Format: source:color,source:color,...)<br></li>
     <li><b>wasteEventSeparator:</b> separator for waste events if there are more than 1 event in one day<br></li>
+    <li><b>showAge:</b> try to find the year of birth within the description field (year must have 4 digits) and to calculate the age of a person.<br></li>
     <li><b>configFolder:</b> path to authorization data of gcalcli (can only be used if the authorization procedure was done with the same --configFolder &lt;path&gt; parameter!)<br></li>
     <br>
   </ul>
