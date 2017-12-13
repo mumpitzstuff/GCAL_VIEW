@@ -39,6 +39,7 @@ sub GCALVIEW_Initialize($)
                       'includeStarted:0,1 '.
                       'sourceColor:textField-long '.
                       'showAge:0,1 '.
+                      'ageSource:description,summary,location '.
                       'disable:0,1 '.
                       'cache:0,1 '.
                       'filterSummary '.
@@ -359,11 +360,11 @@ sub GCALVIEW_DoRun(@)
   if (!defined($calFilter))
   {
     # get list of calendars
-    ($calData, $result) = ($_ = decode_utf8(qx(gcalcli list $configFolder 2>&1)), $? >> 8);
+    ($calData, $result) = ($_ = decode_utf8(qx(gcalcli list --nocolor $configFolder 2>&1)), $? >> 8);
 
     if (0 != $result)
     {
-      Log3 $name, 3, $name.': gcalcli list '.$configFolder;
+      Log3 $name, 3, $name.': gcalcli list --nocolor '.$configFolder;
       Log3 $name, 3, $name.': something went wrong (check your parameters) - '.$calData if defined($calData);
 
       $calData = '';
@@ -444,6 +445,13 @@ sub GCALVIEW_DoRun(@)
     {
       # split each line by tabs
       @_ = split("\t", $_);
+
+      # bugfix: tabulator is not replaced by anything else which leads to an invalid format (try to fix it)
+      if (scalar(@_) > 11)
+      {
+        # merge all additional fields into the description
+        splice(@_, 8, scalar(@_) - 10, join(' ', @_[8..(scalar(@_) - 3)]));
+      }
 
       # output must have exactly 11 fields of data
       if (11 == scalar(@_))
@@ -582,6 +590,7 @@ sub GCALVIEW_DoEnd($)
     my $wasteEventSeparator = AttrVal($name, 'wasteEventSeparator', ' and ');
     my @readingPrefix = ('standard' eq $calendarType) ? ('t_', 'today_', 'tomorrow_') : ((1 == AttrVal($name, 'readingPrefix', 0)) ? ($name.'_') : (''));
     my $showAge = AttrVal($name, 'showAge', 0);
+    my $ageSource = AttrVal($name, 'ageSource', 'description');
     my $nowText = undef;
     my $nowDescription = '';
     my $nextDate = undef;
@@ -595,6 +604,7 @@ sub GCALVIEW_DoEnd($)
     $daysLeftLongText = decode_utf8($daysLeftLongText) if (defined($daysLeftLongText));
     @daysLeftLongArr = split('\s*,\s*', $daysLeftLongText);
     $wasteEventSeparator = decode_utf8($wasteEventSeparator) if (defined($wasteEventSeparator));
+    $ageSource = decode_utf8($ageSource) if (defined($ageSource));
 
     foreach (@calData)
     {
@@ -768,9 +778,14 @@ sub GCALVIEW_DoEnd($)
           {
             my $age = -1;
 
-            if ($showAge && ($description =~ /((?:19|20|21)\d{2})/))
+            if ($showAge)
             {
-              $age = $startYear - $1;
+              if ((('description' eq $ageSource) && ($description =~ /((?:19|20|21)\d{2})/)) ||
+                  (('summary' eq $ageSource) && ($summary =~ /((?:19|20|21)\d{2})/)) ||
+                  (('location' eq $ageSource) && ($location =~ /((?:19|20|21)\d{2})/)))
+              {
+                $age = $startYear - $1;
+              }
             }
 
             readingsBulkUpdate($hash, $readingPrefix[$i].('0' x $counterLength).($$counter + 1).'_bdate', encode_utf8($startDateStr));
@@ -908,7 +923,8 @@ sub GCALVIEW_DoAbort($)
     <li><b>readingPrefix:</b> calendar name is used as reading prefix if type waste is active<br></li>
     <li><b>sourceColor:</b> set a color string based on source (Format: source:color,source:color,...)<br></li>
     <li><b>wasteEventSeparator:</b> separator for waste events if there are more than 1 event in one day<br></li>
-    <li><b>showAge:</b> try to find the year of birth within the description field (year must have 4 digits) and to calculate the age of a person.<br></li>
+    <li><b>showAge:</b> try to find the year of birth within the field defined by ageSource (year must have 4 digits) and to calculate the age of a person.<br></li>
+    <li><b>ageSource:</b> defines the location of the year of birth and can be the description, the summary or the location (default: description).<br></li>
     <li><b>configFolder:</b> path to authorization data of gcalcli (can only be used if the authorization procedure was done with the same --configFolder &lt;path&gt; parameter!)<br></li>
     <br>
   </ul>

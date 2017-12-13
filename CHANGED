@@ -1,1 +1,2 @@
-  - attribute showAge added
+  - attribute ageSource added
+  - fixed a bug if description contains tabs
