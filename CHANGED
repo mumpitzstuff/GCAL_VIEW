@@ -1,2 +1,3 @@
-  - attribute ageSource added
-  - fixed a bug if description contains tabs
+  - attribute calendarIncludeStarted added
+  - attribute includeStarted removed
+  - version information added

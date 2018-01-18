@@ -36,7 +36,6 @@ sub GCALVIEW_Initialize($)
                       'weekdayText '.
                       'daysLeftLongText '.
                       'maxEntries '.
-                      'includeStarted:0,1 '.
                       'sourceColor:textField-long '.
                       'showAge:0,1 '.
                       'ageSource:description,summary,location '.
@@ -68,6 +67,7 @@ sub GCALVIEW_Define($$)
 
   $hash->{NOTIFYDEV} = 'global';
   $hash->{TIMEOUT} = $timeout;
+  $hash->{VERSION} = '1.0.1';
 
   delete $hash->{helper}{RUNNING_PID};
 
@@ -334,7 +334,6 @@ sub GCALVIEW_DoRun(@)
   my $calendarDays = AttrVal($name, 'calendarDays', undef);
   my $calendarPeriod = '';
   my $calFilter = AttrVal($name, 'calendarFilter', undef);
-  my $noStarted = (0 == AttrVal($name, 'includeStarted', 1) ? '--nostarted' : '');
   my $noCache = (0 == AttrVal($name, 'cache', 1) ? '--nocache' : '');
   my $configFolder = AttrVal($name, 'configFolder', undef);
   my ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) = localtime(time);
@@ -364,8 +363,8 @@ sub GCALVIEW_DoRun(@)
 
     if (0 != $result)
     {
-      Log3 $name, 3, $name.': gcalcli list --nocolor '.$configFolder;
-      Log3 $name, 3, $name.': something went wrong (check your parameters) - '.$calData if defined($calData);
+      Log3 $name, 3, encode_utf8($name.': gcalcli list --nocolor '.$configFolder);
+      Log3 $name, 3, encode_uft8($name.': something went wrong (check your parameters) - '.$calData) if defined($calData);
 
       $calData = '';
     }
@@ -403,12 +402,12 @@ sub GCALVIEW_DoRun(@)
   }
 
   # get all calendar entries
-  ($calData, $result) = ($_ = decode_utf8(qx(gcalcli agenda $calendarPeriod $configFolder $calFilter --detail_all $noStarted $noCache --tsv 2>&1)), $? >> 8);
+  ($calData, $result) = ($_ = decode_utf8(qx(gcalcli agenda $calendarPeriod $configFolder $calFilter --detail_all $noCache --tsv 2>&1)), $? >> 8);
 
   if (0 != $result)
   {
-    Log3 $name, 3, $name.": gcalcli agenda $calendarPeriod $configFolder $calFilter --detail_all $noStarted $noCache --tsv";
-    Log3 $name, 3, $name.': something went wrong (check your parameters) - '.$calData if defined($calData);
+    Log3 $name, 3, encode_utf8($name.": gcalcli agenda $calendarPeriod $configFolder $calFilter --detail_all $noCache --tsv");
+    Log3 $name, 3, encode_utf8($name.': something went wrong (check your parameters) - '.$calData) if defined($calData);
 
     $calData = '';
   }
@@ -424,6 +423,8 @@ sub GCALVIEW_DoRun(@)
     my $filterAuthor = AttrVal($name, 'filterAuthor', undef);
     my $filterOverall = AttrVal($name, 'filterOverall', undef);
     my $calendarType = AttrVal($name, 'calendarType', 'standard');
+    my $calendarIncludeStarted = AttrVal($name, 'calendarIncludeStarted', undef);
+    my %icludeStarted = ();
     my $sourceColor;
     my @sourceColors = split('\s*,\s*' , decode_utf8(AttrVal($name, 'sourceColor', '')));
     my %groups;
@@ -440,6 +441,9 @@ sub GCALVIEW_DoRun(@)
     $filterAuthor = decode_utf8($filterAuthor) if (defined($filterAuthor));
     $filterOverall = decode_utf8($filterOverall) if (defined($filterOverall));
     $calendarType = decode_utf8($calendarType) if (defined($calendarType));
+    $calendarIncludeStarted = decode_utf8($calendarIncludeStarted) if (defined($calendarIncludeStarted));
+
+    %icludeStarted = map { $_ => 1 } split(/\s*,\s*/, $calendarIncludeStarted) if (defined($calendarIncludeStarted));
 
     foreach $_ (@entry)
     {
@@ -456,6 +460,10 @@ sub GCALVIEW_DoRun(@)
       # output must have exactly 11 fields of data
       if (11 == scalar(@_))
       {
+        my ($startYear, $startMonth, $startDay) = split("-", $_[0]);
+        my ($startHour, $startMin) = split(":", $_[1]);
+        my $startDate = fhemTimeLocal(0, $startMin, $startHour, $startDay, $startMonth - 1, $startYear - 1900);
+
         # apply some content filters
         next if ((defined($filterSummary) && ($_[6] =~ /$filterSummary/)) ||
                  (defined($filterLocation) && ($_[7] =~ /$filterLocation/)) ||
@@ -466,7 +474,8 @@ sub GCALVIEW_DoRun(@)
                                               ($_[7] =~ /$filterOverall/) ||
                                               ($_[8] =~ /$filterOverall/) ||
                                               ($_[9] =~ /$filterOverall/) ||
-                                              ($_[10] =~ /$filterOverall/))));
+                                              ($_[10] =~ /$filterOverall/))) ||
+                 (!exists($icludeStarted{$_[9]}) && ($startDate <= time)));
 
         # eliminate events with the same summary if type waste is active
         if ('waste' eq $calendarType)
@@ -568,6 +577,7 @@ sub GCALVIEW_DoEnd($)
   {
     $calList =~ s/\s/#/g;
     addToDevAttrList($name, encode_utf8('calendarFilter:multiple-strict,'.$calList));
+    addToDevAttrList($name, encode_utf8('calendarIncludeStarted:multiple-strict,'.$calList));
   }
 
   # clear all readings
@@ -881,7 +891,7 @@ sub GCALVIEW_DoAbort($)
   <a name="GCALVIEWdefine"></a>
   <b>Define</b>
   <ul><br>
-    <code>define &lt;name&gt; GCALVIEW &lt;timeout&gt;</code>
+    <code>define &lt;name&gt; GCALVIEW &lt;timeout in seconds&gt;</code>
     <br><br>
     Example:
     <ul><br>
@@ -907,7 +917,7 @@ sub GCALVIEW_DoAbort($)
     <li><b>calendarDays:</b> defines the timespan in days (start is today). the default timespan is 5 days.<br></li>
     <li><b>calendarType:</b> <ul><li>standard - output like 57_CALVIEW</li>
                                  <li>waste - output like 57_ABFALL</li></ul><br></li>
-    <li><b>includeStarted:</b> disable already started appointments of today (default: show already started appointments)<br></li>
+    <li><b>calendarIncludeStarted:</b> show already started appointments of today (default: already started appointments are disabled for all calendars)<br></li>
     <li><b>maxEntries:</b> limit the maximum appointments (not more than 200 allowed)<br></li>
     <li><b>disable:</b> disable the module (no update anymore)<br></li>
     <li><b>cache:</b> disable the caching of calendar requests (default: cache activated)<br></li>
