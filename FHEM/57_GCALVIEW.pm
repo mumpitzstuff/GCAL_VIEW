@@ -67,7 +67,7 @@ sub GCALVIEW_Define($$)
 
   $hash->{NOTIFYDEV} = 'global';
   $hash->{TIMEOUT} = $timeout;
-  $hash->{VERSION} = '1.0.1';
+  $hash->{VERSION} = '1.0.2';
 
   delete $hash->{helper}{RUNNING_PID};
 
@@ -597,7 +597,7 @@ sub GCALVIEW_DoEnd($)
     my $alldayText = AttrVal($name, 'alldayText', 'all-day');
     my $daysLeftLongText = AttrVal($name, 'daysLeftLongText', 'today,tomorrow,in % days');
     my @daysLeftLongArr;
-    my $wasteEventSeparator = AttrVal($name, 'wasteEventSeparator', ' and ');
+    my $wasteEventSeparator = AttrVal($name, 'wasteEventSeparator', 'and');
     my @readingPrefix = ('standard' eq $calendarType) ? ('t_', 'today_', 'tomorrow_') : ((1 == AttrVal($name, 'readingPrefix', 0)) ? ($name.'_') : (''));
     my $showAge = AttrVal($name, 'showAge', 0);
     my $ageSource = AttrVal($name, 'ageSource', 'description');
@@ -613,7 +613,7 @@ sub GCALVIEW_DoEnd($)
     $alldayText = decode_utf8($alldayText) if (defined($alldayText));
     $daysLeftLongText = decode_utf8($daysLeftLongText) if (defined($daysLeftLongText));
     @daysLeftLongArr = split('\s*,\s*', $daysLeftLongText);
-    $wasteEventSeparator = decode_utf8($wasteEventSeparator) if (defined($wasteEventSeparator));
+    $wasteEventSeparator = ' '.decode_utf8($wasteEventSeparator).' ' if (defined($wasteEventSeparator));
     $ageSource = decode_utf8($ageSource) if (defined($ageSource));
 
     foreach (@calData)
