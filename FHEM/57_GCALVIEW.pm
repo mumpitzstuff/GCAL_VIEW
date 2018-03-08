@@ -34,6 +34,7 @@ sub GCALVIEW_Initialize($)
                       'wasteEventSeparator '.
                       'alldayText '.
                       'weekdayText '.
+                      'emptyReadingText '.
                       'daysLeftLongText '.
                       'maxEntries '.
                       'sourceColor:textField-long '.
@@ -47,8 +48,8 @@ sub GCALVIEW_Initialize($)
                       'filterSource '.
                       'filterAuthor '.
                       'filterOverall '.
+                      'invertFilter:0,1 '.
                       'configFolder '.
-                      #'oauthToken '.
                       $readingFnAttributes;
 
   return undef;
@@ -67,7 +68,7 @@ sub GCALVIEW_Define($$)
 
   $hash->{NOTIFYDEV} = 'global';
   $hash->{TIMEOUT} = $timeout;
-  $hash->{VERSION} = '1.0.2';
+  $hash->{VERSION} = '1.0.3';
 
   delete $hash->{helper}{RUNNING_PID};
 
@@ -211,28 +212,6 @@ sub GCALVIEW_Attr($$$$) {
         return 'regular expression is wrong: '.$@;
       }
     }
-    #elsif ($attribute eq 'oauthToken')
-    #{
-      #my ($fh, $filename) = tempfile();
-      #
-      #print($fh, $value."\n");
-      #seek($fh, 0, 0);
-      #
-      #my $calList = qx(gcalcli list --noauth_local_webserver < $filename);
-      #
-      #if ($? || $stdout !~ /Authentication successful/)
-      #{
-      #  Log3 $name, 3, $name.': something went wrong (oauth token can not be set) - '.$stdout;
-      #
-      #  return 'Authentication failed!';
-      #}
-      #else
-      #{
-      #  Log3 $name, 3, $name.': Authentication successfully completed.';
-      #
-      #  return 'Authentication successfully completed! stdout: '.$stdout.' stderr: '.$stderr;
-      #}
-    #}
   }
 
   return undef;
@@ -280,27 +259,7 @@ sub GCALVIEW_Get($$@) {
   my ($hash, $name, @aa) = @_;
   my ($cmd, $arg) = @aa;
 
-  #if ($cmd eq 'authenticationURL')
-  #{
-  #  my ($calList, $result) = ($_ = qx(gcalcli list --noauth_local_webserver 2>&1 /dev/null), $? >> 8);
-  #
-  #  if ((0 != $result) &&
-  #      ($calList =~ /(https\:\/\/accounts\.google\.com[^\n]+)/))
-  #  {
-  #    return $1;
-  #  }
-  #  else
-  #  {
-  #    # nothing to do because already authenticated
-  #    return 'Authentication seems to be already done.';
-  #  }
-  #}
-  #else
-  #{
-  #  my $list = 'authenticationURL:noArg';
-  #
-  #  return 'Unknown argument '.$cmd.', choose one of '.$list;
-  #}
+
 
   return undef;
 }
@@ -422,6 +381,7 @@ sub GCALVIEW_DoRun(@)
     my $filterSource = AttrVal($name, 'filterSource', undef);
     my $filterAuthor = AttrVal($name, 'filterAuthor', undef);
     my $filterOverall = AttrVal($name, 'filterOverall', undef);
+    my $invertFilter = AttrVal($name, 'invertFilter', 0);
     my $calendarType = AttrVal($name, 'calendarType', 'standard');
     my $calendarIncludeStarted = AttrVal($name, 'calendarIncludeStarted', undef);
     my %icludeStarted = ();
@@ -429,6 +389,7 @@ sub GCALVIEW_DoRun(@)
     my @sourceColors = split('\s*,\s*' , decode_utf8(AttrVal($name, 'sourceColor', '')));
     my %groups;
     my $lastStartDate;
+    my $afternext;
 
 
     Log3 $name, 5, $name.': '.$calData;
@@ -465,19 +426,38 @@ sub GCALVIEW_DoRun(@)
         my $startDate = fhemTimeLocal(0, $startMin, $startHour, $startDay, $startMonth - 1, $startYear - 1900);
 
         # apply some content filters
-        next if ((defined($filterSummary) && ($_[6] =~ /$filterSummary/)) ||
-                 (defined($filterLocation) && ($_[7] =~ /$filterLocation/)) ||
-                 (defined($filterDescription) && ($_[8] =~ /$filterDescription/)) ||
-                 (defined($filterSource) && ($_[9] =~ /$filterSource/)) ||
-                 (defined($filterAuthor) && ($_[10] =~ /$filterAuthor/)) ||
-                 (defined($filterOverall) && (($_[6] =~ /$filterOverall/) ||
-                                              ($_[7] =~ /$filterOverall/) ||
-                                              ($_[8] =~ /$filterOverall/) ||
-                                              ($_[9] =~ /$filterOverall/) ||
-                                              ($_[10] =~ /$filterOverall/))) ||
-                 (!exists($icludeStarted{$_[9]}) && ($startDate <= time)));
+        if (0 == $invertFilter)
+        {
+          next if ((defined($filterSummary) && ($_[6] =~ /$filterSummary/)) ||
+                   (defined($filterLocation) && ($_[7] =~ /$filterLocation/)) ||
+                   (defined($filterDescription) && ($_[8] =~ /$filterDescription/)) ||
+                   (defined($filterSource) && ($_[9] =~ /$filterSource/)) ||
+                   (defined($filterAuthor) && ($_[10] =~ /$filterAuthor/)) ||
+                   (defined($filterOverall) && (($_[6] =~ /$filterOverall/) ||
+                                                ($_[7] =~ /$filterOverall/) ||
+                                                ($_[8] =~ /$filterOverall/) ||
+                                                ($_[9] =~ /$filterOverall/) ||
+                                                ($_[10] =~ /$filterOverall/))) ||
+                   (!exists($icludeStarted{$_[9]}) && ($startDate <= time)));
+        }
+        else
+        {
+          next if (defined($filterSummary) && ($_[6] !~ /$filterSummary/));
+          next if (defined($filterLocation) && ($_[7] !~ /$filterLocation/));
+          next if (defined($filterDescription) && ($_[8] !~ /$filterDescription/));
+          next if (defined($filterSource) && ($_[9] !~ /$filterSource/));
+          next if (defined($filterAuthor) && ($_[10] !~ /$filterAuthor/));
+          next if (defined($filterOverall) && (($_[6] !~ /$filterOverall/) &&
+                                               ($_[7] !~ /$filterOverall/) &&
+                                               ($_[8] !~ /$filterOverall/) &&
+                                               ($_[9] !~ /$filterOverall/) &&
+                                               ($_[10] !~ /$filterOverall/)));
+
+          next if (!exists($icludeStarted{$_[9]}) && ($startDate <= time));
+        }
 
         # eliminate events with the same summary if type waste is active
+        $afternext = '';
         if ('waste' eq $calendarType)
         {
           #Log3 $name, 5, $name.': '.join(', ', @_);
@@ -486,24 +466,29 @@ sub GCALVIEW_DoRun(@)
           {
             $groups{$_[6]} = 1;
           }
+          elsif (1 == $groups{$_[6]})
+          {
+            my $data;
+
+            #Log3 $name, 3, $name.': afternext '.$_[6].' ('.$_[0].')';
+
+            # replace afternext if needed
+            foreach $data (@calStruct)
+            {
+              if (@$data[6] eq $_[6])
+              {
+                @$data[12] = $_[0];
+              }
+            }
+
+            $groups{$_[6]} = 2;
+
+            next;
+          }
           else
           {
             next;
           }
-
-          # join the event with same start date
-          #if (!defined($lastStartDate) ||
-          #    ($lastStartDate ne $_[0]))
-          #{
-          #  $lastStartDate = $_[0];
-          #}
-          #else
-          #{
-          #  # join the event summary
-          #  $calStruct[$#calStruct][6] .= ' '.$_[6];
-          #
-          #  next;
-          #}
         }
 
         # generate source color and add an additional data field
@@ -521,6 +506,7 @@ sub GCALVIEW_DoRun(@)
         };
 
         push(@_, $sourceColor);
+        push(@_, $afternext);
         push(@calStruct, [@_]);
       }
       else
@@ -594,6 +580,7 @@ sub GCALVIEW_DoEnd($)
     ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) = localtime(time + 86400);
     my $tomorrow = sprintf('%02d.%02d.%04d', $mday, $mon + 1, $year + 1900);
     my $weekDayArr = AttrVal($name, 'weekdayText', undef);
+    my $emptyReadingText = AttrVal($name, 'emptyReadingText', '');
     my $alldayText = AttrVal($name, 'alldayText', 'all-day');
     my $daysLeftLongText = AttrVal($name, 'daysLeftLongText', 'today,tomorrow,in % days');
     my @daysLeftLongArr;
@@ -610,6 +597,7 @@ sub GCALVIEW_DoEnd($)
 
     # prepare input values
     $weekDayArr = decode_utf8($weekDayArr) if (defined($weekDayArr));
+    $emptyReadingText = decode_utf8($emptyReadingText) if (defined($emptyReadingText));
     $alldayText = decode_utf8($alldayText) if (defined($alldayText));
     $daysLeftLongText = decode_utf8($daysLeftLongText) if (defined($daysLeftLongText));
     @daysLeftLongArr = split('\s*,\s*', $daysLeftLongText);
@@ -632,27 +620,39 @@ sub GCALVIEW_DoEnd($)
       # 10 = author
       # additional generated attribute
       # 11 = sourcecolor
+      # 12 = afternext
 
       my $startDate = @$_[0];
       my $startTime = @$_[1];
-      my $endDate = @$_[2];
-      my $endTime = @$_[3];
-      my $url = @$_[4];
-      my $summary = @$_[6];
-      my $location = @$_[7];
-      my $description = @$_[8];
-      my $calendar = @$_[9];
-      my $author = @$_[10];
-      my $sourceColor = @$_[11];
+      my $endDate = ('' ne @$_[2] ? @$_[2] : @$_[0]);
+      my $endTime = ('' ne @$_[3] ? @$_[3] : @$_[1]);
+      my $url = ('' ne @$_[4] ? @$_[4] : $emptyReadingText);
+      my $summary = ('' ne @$_[6] ? @$_[6] : $emptyReadingText);
+      my $location = ('' ne @$_[7] ? @$_[7] : $emptyReadingText);
+      my $description = ('' ne @$_[8] ? @$_[8] : $emptyReadingText);
+      my $calendar = ('' ne @$_[9] ? @$_[9] : $emptyReadingText);
+      my $author = ('' ne @$_[10] ? @$_[10] : $emptyReadingText);
+      my $sourceColor = ('' ne @$_[11] ? @$_[11] : $emptyReadingText);
+      my $afternext = @$_[12];
       my ($startYear, $startMonth, $startDay) = split("-", $startDate);
       my ($endYear, $endMonth, $endDay) = split("-", $endDate);
       my $eventDate = fhemTimeLocal(0, 0, 0, $startDay, $startMonth - 1, $startYear - 1900);
       my $daysleft = floor(($eventDate - time) / 60 / 60 / 24 + 1);
       my $daysleftLong;
+      my $daysleftNext;
       my $startDateStr = $startDay.'.'.$startMonth.'.'.$startYear;
       my $endDateStr = $endDay.'.'.$endMonth.'.'.$endYear;
       my $timeShort;
       my $weekdayStr;
+
+      # calculate days to next event
+      if ('' ne $afternext)
+      {
+        my ($y, $m, $d) = split("-", $afternext);
+        my $ed = fhemTimeLocal(0, 0, 0, $d, $m - 1, $y - 1900);
+        $daysleftNext = floor(($ed - time) / 60 / 60 / 24 + 1);
+        #Log3 $name, 3, $name.': days afternext '.$daysleftNext;
+      }
 
       # fix daysleft if event is already running
       $daysleft = 0 if ($daysleft < 0);
@@ -725,8 +725,11 @@ sub GCALVIEW_DoEnd($)
             $readingName =~ s/([äÄüÜöÖß])/$umlaute{$1}/eg;
             $readingName =~ tr/a-zA-Z0-9\-_//dc;
 
+            #Log3 $name, 3, $name.': '.$summary.' days afternext '.$daysleftNext;
+
             readingsBulkUpdate($hash, encode_utf8($readingPrefix[$i].$readingName.'_date'), encode_utf8($startDateStr));
             readingsBulkUpdate($hash, encode_utf8($readingPrefix[$i].$readingName.'_days'), encode_utf8($daysleft));
+            readingsBulkUpdate($hash, encode_utf8($readingPrefix[$i].$readingName.'_daysnext'), encode_utf8($daysleftNext)) if (defined($daysleftNext));
             readingsBulkUpdate($hash, encode_utf8($readingPrefix[$i].$readingName.'_location'), encode_utf8($location));
             readingsBulkUpdate($hash, encode_utf8($readingPrefix[$i].$readingName.'_description'), encode_utf8($description));
             readingsBulkUpdate($hash, encode_utf8($readingPrefix[$i].$readingName.'_text'), encode_utf8($summary));
@@ -746,6 +749,7 @@ sub GCALVIEW_DoEnd($)
               else
               {
                 readingsBulkUpdate($hash, 'now_date', encode_utf8($startDateStr));
+                readingsBulkUpdate($hash, 'now_daysnext', encode_utf8($daysleftNext)) if (defined($daysleftNext));
                 readingsBulkUpdate($hash, 'now_location', encode_utf8($location));
                 readingsBulkUpdate($hash, 'now_description', encode_utf8($description));
                 readingsBulkUpdate($hash, 'now_text', encode_utf8($summary));
@@ -772,6 +776,7 @@ sub GCALVIEW_DoEnd($)
             {
               readingsBulkUpdate($hash, 'next_date', encode_utf8($startDateStr));
               readingsBulkUpdate($hash, 'next_days', encode_utf8($daysleft));
+              readingsBulkUpdate($hash, 'next_daysnext', encode_utf8($daysleftNext)) if (defined($daysleftNext));
               readingsBulkUpdate($hash, 'next_location', encode_utf8($location));
               readingsBulkUpdate($hash, 'next_description', encode_utf8($description));
               readingsBulkUpdate($hash, 'next_text', encode_utf8($summary));
@@ -927,7 +932,9 @@ sub GCALVIEW_DoAbort($)
     <li><b>filterSource:</b> regex to filter a source (whole appointment will be removed from output if the regex matches)<br></li>
     <li><b>filterAuthor:</b> regex to filter an author (whole appointment will be removed from output if the regex matches)<br></li>
     <li><b>filterOverall:</b> regex to filter a summary, location, description, source or author (whole appointment will be removed from output if the regex matches)<br></li>
+    <li><b>invertFilter:</b> enable/disable invertion of filter which means that everything that does not match the regular expression is filtered out. (default: disabled)<br></li>
     <li><b>alldayText:</b> set the text for an allday event (default: all-day)<br></li>
+    <li><b>emptyReadingText:</b> set the text for empty readings (default: no text)<br></li>
     <li><b>weekdayText:</b> set the weekday text as comma separated list (default: Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday)<br></li>
     <li><b>daysLeftLongText:</b> set the daysLeftLong text as comma separated list. % in part 3 is replaced by the number of days. (default: today,tomorrow,in % days)<br></li>
     <li><b>readingPrefix:</b> calendar name is used as reading prefix if type waste is active<br></li>

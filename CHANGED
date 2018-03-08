@@ -1,1 +1,4 @@
-  - attribute wasteEventSeparator fixed
+  - attribute emptyReadingText added
+  - attribute invertFilter added
+  - reading _daysnext added (waste only)
+  - version increased from 1.0.2 to 1.0.3
