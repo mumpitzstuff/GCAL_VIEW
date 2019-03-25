@@ -68,7 +68,7 @@ sub GCALVIEW_Define($$)
 
   $hash->{NOTIFYDEV} = 'global';
   $hash->{TIMEOUT} = $timeout;
-  $hash->{VERSION} = '1.0.3';
+  $hash->{VERSION} = '1.0.4';
 
   delete $hash->{helper}{RUNNING_PID};
 
@@ -76,7 +76,7 @@ sub GCALVIEW_Define($$)
 
   readingsSingleUpdate($hash, 'state', 'Initialized', 1);
 
-  Log3 $name, 3, $name.'defined with timeout '.$timeout;
+  Log3 $name, 3, $name.' defined with timeout '.$timeout;
 
   return undef;
 }
@@ -275,7 +275,7 @@ sub GCALVIEW_Start($)
   {
     Log3 $hash->{NAME}, 3, $hash->{NAME}.' blocking call already running';
 
-    GCALVIEW_DoAbort($hash);
+    BlockingKill($hash->{helper}{RUNNING_PID}) if (defined($hash->{helper}{RUNNING_PID}));
   }
 
   GCALVIEW_SetNextTimer($hash, undef);
@@ -297,6 +297,7 @@ sub GCALVIEW_DoRun(@)
   my $configFolder = AttrVal($name, 'configFolder', undef);
   my ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) = localtime(time);
   my $today = sprintf('%02d/%02d/%04d', $mon + 1, $mday, $year + 1900);
+  my $gcalcliVersion = 3;
 
   Log3 $name, 5, $name.'_DoRun: start running';
 
@@ -305,9 +306,34 @@ sub GCALVIEW_DoRun(@)
   $calFilter = decode_utf8($calFilter) if (defined($calFilter));
   $configFolder = decode_utf8($configFolder) if (defined($configFolder));
 
+  # get version of gcalcli
+  ($calData, $result) = ($_ = decode_utf8(qx(export PYTHONIOENCODING=utf8 && gcalcli --version 2>&1)), $? >> 8);
+
+  if (0 != $result)
+  {
+    Log3 $name, 3, encode_utf8($name.": export PYTHONIOENCODING=utf8 && gcalcli --version");
+    Log3 $name, 3, encode_utf8($name.': something went wrong (check your parameters) - '.$calData) if defined($calData);
+
+    $calData = '';
+  }
+  else
+  {
+    if ($calData =~ /gcalcli v(\d)/)
+    {
+      $gcalcliVersion = $1;
+    }
+  }
+
   if (defined($configFolder))
   {
-    $configFolder = '--configFolder '.$configFolder;
+    if ($gcalcliVersion < 4)
+    {
+      $configFolder = '--configFolder '.$configFolder;
+    }
+    else
+    {
+      $configFolder = '--config-folder '.$configFolder;
+    }
   }
   else
   {
@@ -318,12 +344,12 @@ sub GCALVIEW_DoRun(@)
   if (!defined($calFilter))
   {
     # get list of calendars
-    ($calData, $result) = ($_ = decode_utf8(qx(gcalcli list --nocolor $configFolder 2>&1)), $? >> 8);
+    ($calData, $result) = ($_ = decode_utf8(qx(export PYTHONIOENCODING=utf8 && gcalcli list --nocolor $configFolder 2>&1)), $? >> 8);
 
     if (0 != $result)
     {
-      Log3 $name, 3, encode_utf8($name.': gcalcli list --nocolor '.$configFolder);
-      Log3 $name, 3, encode_uft8($name.': something went wrong (check your parameters) - '.$calData) if defined($calData);
+      Log3 $name, 3, encode_utf8($name.': export PYTHONIOENCODING=utf8 && gcalcli list --nocolor '.$configFolder);
+      Log3 $name, 3, encode_utf8($name.': something went wrong (check your parameters) - '.$calData) if defined($calData);
 
       $calData = '';
     }
@@ -361,11 +387,11 @@ sub GCALVIEW_DoRun(@)
   }
 
   # get all calendar entries
-  ($calData, $result) = ($_ = decode_utf8(qx(gcalcli agenda $calendarPeriod $configFolder $calFilter --detail_all $noCache --tsv 2>&1)), $? >> 8);
+  ($calData, $result) = ($_ = decode_utf8(qx(export PYTHONIOENCODING=utf8 && gcalcli agenda $calendarPeriod $configFolder $calFilter --details calendar --details longurl --details location --details description --details email $noCache --tsv 2>&1)), $? >> 8);
 
   if (0 != $result)
   {
-    Log3 $name, 3, encode_utf8($name.": gcalcli agenda $calendarPeriod $configFolder $calFilter --detail_all $noCache --tsv");
+    Log3 $name, 3, encode_utf8($name.": export PYTHONIOENCODING=utf8 && gcalcli agenda $calendarPeriod $configFolder $calFilter --details calendar --details longurl --details location --details description --details email $noCache --tsv");
     Log3 $name, 3, encode_utf8($name.': something went wrong (check your parameters) - '.$calData) if defined($calData);
 
     $calData = '';
@@ -654,6 +680,13 @@ sub GCALVIEW_DoEnd($)
         #Log3 $name, 3, $name.': days afternext '.$daysleftNext;
       }
 
+      # fix that event is visible if endtime is 0:00
+      #if (($daysleft < 0) && ($endTime eq "00:00"))
+      #{
+      #  next if (($daysleft < 0) && ($endTime eq "00:00") &&
+      #           (0 == (fhemTimeLocal(0, 0, 0, $endDay, $endMonth - 1, $endYear - 1900) - time)));
+      #}
+
       # fix daysleft if event is already running
       $daysleft = 0 if ($daysleft < 0);
 
@@ -877,15 +910,13 @@ sub GCALVIEW_DoAbort($)
   <ul><br>
     You have to install gcalcli first and to get a valid OAuth token directly from Google.<br><br>
     <code>sudo apt-get install gcalcli</code><br>
-    <code>sudo pip install gcalcli</code><br><br>
-    Now check if the user fhem is able to open a bash shell (just needed temporary and can be reverted after the OAuth token was installed).<br><br>
-    <code>sudo nano /etc/passwd</code><br><br>
-    Search for user fhem and replace /bin/false with /bin/bash if needed.<br><br>
-    <code>gcalcli list --noauth_local_webserver</code><br><br>
+    <code>sudo pip3 install gcalcli</code><br><br>
+    <code>sudo -u fhem gcalcli list --noauth_local_webserver</code><br>
+    or<br>
+    <code>sudo -u fhem gcalcli --noauth_local_webserver list</code><br><br>
     Copy the URL into a browser and start it. Accept the connection to your Google Calendar and copy the OAuth token. Enter the token in your fhem console window and press enter.<br><br>
-    <code>gcalcli list</code><br><br>
+    <code>sudo -u fhem gcalcli list</code><br><br>
     Check if you can get a list of you calendars now and proceed if it was successful.<br>
-    Exit the fhem bash and revert the change in /etc/passwd again just for security reasons.<br>
     Open you fhem installation within you browser now and do the following:<br><br>
     <code>update add http://raw.githubusercontent.com/mumpitzstuff/fhem-GCALVIEW/master/controls_gcalview.txt</code><br>
     <code>update all</code><br>
