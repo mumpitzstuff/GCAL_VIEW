@@ -68,7 +68,7 @@ sub GCALVIEW_Define($$)
 
   $hash->{NOTIFYDEV} = 'global';
   $hash->{TIMEOUT} = $timeout;
-  $hash->{VERSION} = '1.0.4';
+  $hash->{VERSION} = '1.0.5';
 
   delete $hash->{helper}{RUNNING_PID};
 
@@ -309,19 +309,16 @@ sub GCALVIEW_DoRun(@)
   # get version of gcalcli
   ($calData, $result) = ($_ = decode_utf8(qx(export PYTHONIOENCODING=utf8 && gcalcli --version 2>&1)), $? >> 8);
 
-  if (0 != $result)
+  if (defined($calData) && ($calData =~ /gcalcli v(\d)/))
+  {
+    $gcalcliVersion = $1;
+  }
+  else
   {
     Log3 $name, 3, encode_utf8($name.": export PYTHONIOENCODING=utf8 && gcalcli --version");
     Log3 $name, 3, encode_utf8($name.': something went wrong (check your parameters) - '.$calData) if defined($calData);
 
     $calData = '';
-  }
-  else
-  {
-    if ($calData =~ /gcalcli v(\d)/)
-    {
-      $gcalcliVersion = $1;
-    }
   }
 
   if (defined($configFolder))
