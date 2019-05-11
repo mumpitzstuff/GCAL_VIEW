@@ -1,2 +1,2 @@
-  - url attribute fixed (gcalcli)
-  - version increased from 1.0.5 to 1.0.6
+  - default value for calendarDays set to 14
+  - version increased from 1.0.6 to 1.0.7

@@ -68,7 +68,7 @@ sub GCALVIEW_Define($$)
 
   $hash->{NOTIFYDEV} = 'global';
   $hash->{TIMEOUT} = $timeout;
-  $hash->{VERSION} = '1.0.6';
+  $hash->{VERSION} = '1.0.7';
 
   delete $hash->{helper}{RUNNING_PID};
 
@@ -290,7 +290,7 @@ sub GCALVIEW_DoRun(@)
   my @calList = ();
   my $calData = '';
   my $result;
-  my $calendarDays = AttrVal($name, 'calendarDays', undef);
+  my $calendarDays = AttrVal($name, 'calendarDays', 14);
   my $calendarPeriod = '';
   my $calFilter = AttrVal($name, 'calendarFilter', undef);
   my $noCache = (0 == AttrVal($name, 'cache', 1) ? '--nocache' : '');
