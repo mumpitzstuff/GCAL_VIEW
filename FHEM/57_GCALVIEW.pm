@@ -68,7 +68,7 @@ sub GCALVIEW_Define($$)
 
   $hash->{NOTIFYDEV} = 'global';
   $hash->{TIMEOUT} = $timeout;
-  $hash->{VERSION} = '1.0.5';
+  $hash->{VERSION} = '1.0.6';
 
   delete $hash->{helper}{RUNNING_PID};
 
@@ -384,11 +384,25 @@ sub GCALVIEW_DoRun(@)
   }
 
   # get all calendar entries
-  ($calData, $result) = ($_ = decode_utf8(qx(export PYTHONIOENCODING=utf8 && gcalcli agenda $calendarPeriod $configFolder $calFilter --details calendar --details longurl --details location --details description --details email $noCache --tsv 2>&1)), $? >> 8);
+  if ($gcalcliVersion < 4)
+  {
+    ($calData, $result) = ($_ = decode_utf8(qx(export PYTHONIOENCODING=utf8 && gcalcli agenda $calendarPeriod $configFolder $calFilter --details calendar --details url --details location --details description --details email $noCache --tsv 2>&1)), $? >> 8);
+  }
+  else
+  {
+    ($calData, $result) = ($_ = decode_utf8(qx(export PYTHONIOENCODING=utf8 && gcalcli agenda $calendarPeriod $configFolder $calFilter --details calendar --details longurl --details location --details description --details email $noCache --tsv 2>&1)), $? >> 8);
+  }
 
   if (0 != $result)
   {
-    Log3 $name, 3, encode_utf8($name.": export PYTHONIOENCODING=utf8 && gcalcli agenda $calendarPeriod $configFolder $calFilter --details calendar --details longurl --details location --details description --details email $noCache --tsv");
+    if ($gcalcliVersion < 4)
+    {
+      Log3 $name, 3, encode_utf8($name.": export PYTHONIOENCODING=utf8 && gcalcli agenda $calendarPeriod $configFolder $calFilter --details calendar --details url --details location --details description --details email $noCache --tsv");
+    }
+    else
+    {
+      Log3 $name, 3, encode_utf8($name.": export PYTHONIOENCODING=utf8 && gcalcli agenda $calendarPeriod $configFolder $calFilter --details calendar --details longurl --details location --details description --details email $noCache --tsv");
+    }
     Log3 $name, 3, encode_utf8($name.': something went wrong (check your parameters) - '.$calData) if defined($calData);
 
     $calData = '';
