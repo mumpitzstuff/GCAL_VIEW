@@ -68,7 +68,7 @@ sub GCALVIEW_Define($$)
 
   $hash->{NOTIFYDEV} = 'global';
   $hash->{TIMEOUT} = $timeout;
-  $hash->{VERSION} = '1.0.7';
+  $hash->{VERSION} = '1.0.8';
 
   delete $hash->{helper}{RUNNING_PID};
 
@@ -307,19 +307,19 @@ sub GCALVIEW_DoRun(@)
   $configFolder = decode_utf8($configFolder) if (defined($configFolder));
 
   # get version of gcalcli
-  ($calData, $result) = ($_ = decode_utf8(qx(export PYTHONIOENCODING=utf8 && gcalcli --version 2>&1)), $? >> 8);
+  #($calData, $result) = ($_ = decode_utf8(qx(export PYTHONIOENCODING=utf8 && gcalcli --version 2>&1)), $? >> 8);
 
-  if (defined($calData) && ($calData =~ /gcalcli v(\d)/))
-  {
-    $gcalcliVersion = $1;
-  }
-  else
-  {
-    Log3 $name, 3, encode_utf8($name.": export PYTHONIOENCODING=utf8 && gcalcli --version");
-    Log3 $name, 3, encode_utf8($name.': something went wrong (check your parameters) - '.$calData) if defined($calData);
+  #if (defined($calData) && ($calData =~ /gcalcli v(\d)/))
+  #{
+  #  $gcalcliVersion = $1;
+  #}
+  #else
+  #{
+  #  Log3 $name, 3, encode_utf8($name.": export PYTHONIOENCODING=utf8 && gcalcli --version");
+  #  Log3 $name, 3, encode_utf8($name.': something went wrong (check your parameters) - '.$calData) if defined($calData);
 
-    $calData = '';
-  }
+  #  $calData = '';
+  #}
 
   if (defined($configFolder))
   {
@@ -384,25 +384,25 @@ sub GCALVIEW_DoRun(@)
   }
 
   # get all calendar entries
-  if ($gcalcliVersion < 4)
-  {
+  #if ($gcalcliVersion < 4)
+  #{
     ($calData, $result) = ($_ = decode_utf8(qx(export PYTHONIOENCODING=utf8 && gcalcli agenda $calendarPeriod $configFolder $calFilter --details calendar --details url --details location --details description --details email $noCache --tsv 2>&1)), $? >> 8);
-  }
-  else
-  {
-    ($calData, $result) = ($_ = decode_utf8(qx(export PYTHONIOENCODING=utf8 && gcalcli agenda $calendarPeriod $configFolder $calFilter --details calendar --details longurl --details location --details description --details email $noCache --tsv 2>&1)), $? >> 8);
-  }
+  #}
+  #else
+  #{
+  #  ($calData, $result) = ($_ = decode_utf8(qx(export PYTHONIOENCODING=utf8 && gcalcli agenda $calendarPeriod $configFolder $calFilter --details calendar --details longurl --details location --details description --details email $noCache --tsv 2>&1)), $? >> 8);
+  #}
 
   if (0 != $result)
   {
-    if ($gcalcliVersion < 4)
-    {
+    #if ($gcalcliVersion < 4)
+    #{
       Log3 $name, 3, encode_utf8($name.": export PYTHONIOENCODING=utf8 && gcalcli agenda $calendarPeriod $configFolder $calFilter --details calendar --details url --details location --details description --details email $noCache --tsv");
-    }
-    else
-    {
-      Log3 $name, 3, encode_utf8($name.": export PYTHONIOENCODING=utf8 && gcalcli agenda $calendarPeriod $configFolder $calFilter --details calendar --details longurl --details location --details description --details email $noCache --tsv");
-    }
+    #}
+    #else
+    #{
+    #  Log3 $name, 3, encode_utf8($name.": export PYTHONIOENCODING=utf8 && gcalcli agenda $calendarPeriod $configFolder $calFilter --details calendar --details longurl --details location --details description --details email $noCache --tsv");
+    #}
     Log3 $name, 3, encode_utf8($name.': something went wrong (check your parameters) - '.$calData) if defined($calData);
 
     $calData = '';

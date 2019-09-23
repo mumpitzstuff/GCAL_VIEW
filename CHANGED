@@ -1,2 +1,2 @@
-  - default value for calendarDays set to 14
-  - version increased from 1.0.6 to 1.0.7
+  - longurl support removed again (deprecated)
+  - version increased from 1.0.7 to 1.0.8
